@@ -11,6 +11,7 @@ from PIL import Image
 
 import segmentation_models_pytorch as smp
 from transformers import ViTModel
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
 
 # ============================================================
 # 0) Excelファイルから画像パスとラベルデータを生成する関数。最初に文字列に変換してから処理
@@ -187,8 +188,8 @@ class TwoLevelViT(nn.Module):
 # ============================================================
 def main():
     # 学習用Excelファイルと画像ディレクトリのパス
-    excel_path = "Rubatoスライド評価正解データ_trialsample.xlsx"  # Excelファイルのパス
-    base_img_dir = "/Users/scide_furusawa/Documents/VScode_rubato_0325/slides"  # 学習用画像ファイルが保存されているディレクトリ
+    excel_path = "/Users/scide_furusawa/Documents/書類 - 古澤剛のMacBook Pro (2) - 1/Rubato 画像認識/Rubatoスライド評価正解データ_trial2.xlsx"  # Excelファイルのパス
+    base_img_dir = "学習用画像_2000818東大スライドV6(1～892）"  # 学習用画像ファイルが保存されているディレクトリ
     # ※ ここは実際の環境に合わせて変更してください
     
     # Excelから画像パスとラベルデータを生成
@@ -197,7 +198,7 @@ def main():
     # ハイパーパラメータ
     num_labels = 10   # 10チェック項目
     batch_size = 4
-    num_epochs = 5
+    num_epochs = 10
     lr = 1e-4
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -212,7 +213,12 @@ def main():
     
     # データセットとDataLoader作成
     dataset = SlideDataset(image_paths, slide_labels, transform=transform)
-    train_loader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
+    # 訓練用と検証用に分割
+    train_size = int(0.8 * len(dataset))
+    val_size = len(dataset) - train_size
+    train_dataset, val_dataset = torch.utils.data.random_split(dataset, [train_size, val_size])
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
     
     # モデル、損失、オプティマイザの定義 (マルチラベルなのでBCEWithLogitsLoss)
     model = TwoLevelViT(num_labels=num_labels).to(device)
@@ -238,21 +244,27 @@ def main():
         
         epoch_loss = total_loss / len(train_loader.dataset) if len(train_loader.dataset)>0 else 0.0
         
-        # 簡易評価: 同じデータで精度チェック (各要素の一致率)
+        # 検証データで評価
         model.eval()
-        correct, total = 0, 0
+        all_labels = []
+        all_preds = []
         with torch.no_grad():
-            for images, labels in train_loader:
+            for images, labels in val_loader:
                 images = images.to(device)
                 labels = labels.to(device).float()
                 logits = model(images)
-                preds = torch.sigmoid(logits)  # (B,10)
-                predicted = (preds > 0.5).float()  # (B,10)
-                correct += (predicted == labels).sum().item()
-                total += labels.numel()
-        accuracy = (correct / total) * 100 if total>0 else 0.0
-        
-        print(f"Epoch [{epoch+1}/{num_epochs}] Loss={epoch_loss:.4f} Acc={accuracy:.2f}%")
+                preds = (torch.sigmoid(logits) > 0.5).float()
+                all_labels.append(labels.cpu())
+                all_preds.append(preds.cpu())
+        y_true = torch.vstack(all_labels).numpy()
+        y_pred = torch.vstack(all_preds).numpy()
+        acc = accuracy_score(y_true, y_pred)
+        precision = precision_score(y_true, y_pred, average='macro', zero_division=0)
+        recall = recall_score(y_true, y_pred, average='macro', zero_division=0)
+        f1 = f1_score(y_true, y_pred, average='macro', zero_division=0)
+        print(f"Epoch [{epoch+1}/{num_epochs}] Loss={epoch_loss:.4f} "
+              f"Val_Acc={acc*100:.2f}% Precision={precision:.4f} "
+              f"Recall={recall:.4f} F1={f1:.4f}")
     
     # 学習済みモデルの保存
     torch.save(model.state_dict(), "two_level_vit_10label.pth")
