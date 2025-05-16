@@ -5,13 +5,14 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import Dataset, DataLoader, WeightedRandomSampler
 from torchvision import transforms
 from PIL import Image
 
 import segmentation_models_pytorch as smp
 from transformers import ViTModel
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
+import numpy as np
 
 # ============================================================
 # 0) Excelファイルから画像パスとラベルデータを生成する関数。最初に文字列に変換してから処理
@@ -217,12 +218,37 @@ def main():
     train_size = int(0.8 * len(dataset))
     val_size = len(dataset) - train_size
     train_dataset, val_dataset = torch.utils.data.random_split(dataset, [train_size, val_size])
-    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+    # ====== Compute per-label pos_weight for BCEWithLogitsLoss to handle class imbalance ======
+    pos_counts = torch.zeros(num_labels)
+    neg_counts = torch.zeros(num_labels)
+    for idx in train_dataset.indices:               # train_dataset is a Subset
+        lbl = torch.tensor(dataset.labels[idx])     # list → tensor of shape (10,)
+        pos_counts += lbl
+        neg_counts += 1 - lbl
+    pos_weight = neg_counts / (pos_counts + 1e-6)   # avoid division‑by‑zero
+    print(f"pos_weight tensor (positive class weights): {pos_weight}")
+    # =========================================================================================
+    # ----- WeightedRandomSampler でラベル不均衡に対処 -----
+    #   各サンプルの重み = そのサンプルが含む陽性ラベルの pos_weight の合計。
+    #   陽性ラベルが無い場合は pos_weight の最小値で置き換え（過小評価を防ぐ）。
+    sample_weights = []
+    for idx in train_dataset.indices:
+        lbl = torch.tensor(dataset.labels[idx])
+        w   = (lbl * pos_weight).sum().item()
+        if w == 0:                       # 全ラベル0の行
+            w = pos_weight.min().item()  # 最小の正例重みに合わせる
+        sample_weights.append(w)
+    sampler      = WeightedRandomSampler(sample_weights,
+                                         num_samples=len(sample_weights),
+                                         replacement=True)
+    train_loader = DataLoader(train_dataset,
+                              batch_size=batch_size,
+                              sampler=sampler)
     val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
     
     # モデル、損失、オプティマイザの定義 (マルチラベルなのでBCEWithLogitsLoss)
     model = TwoLevelViT(num_labels=num_labels).to(device)
-    criterion = nn.BCEWithLogitsLoss()
+    criterion = nn.BCEWithLogitsLoss(pos_weight=pos_weight.to(device))
     optimizer = optim.Adam(model.parameters(), lr=lr)
     
     # 学習ループ
