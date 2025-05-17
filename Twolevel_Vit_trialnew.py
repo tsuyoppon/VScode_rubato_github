@@ -229,26 +229,33 @@ def main():
     print(f"pos_weight tensor (positive class weights): {pos_weight}")
     # =========================================================================================
     # ----- WeightedRandomSampler でラベル不均衡に対処 -----
-    #   各サンプルの重み = そのサンプルが含む陽性ラベルの pos_weight の合計。
-    #   陽性ラベルが無い場合は pos_weight の最小値で置き換え（過小評価を防ぐ）。
+    #   (重み平滑化 + 重複防止 + clip)
+    clip_val = 5.0      # 重みの上限
     sample_weights = []
     for idx in train_dataset.indices:
         lbl = torch.tensor(dataset.labels[idx])
-        w   = (lbl * pos_weight).sum().item()
-        if w == 0:                       # 全ラベル0の行
-            w = pos_weight.min().item()  # 最小の正例重みに合わせる
+        # 下限 1.0 を足してから pos_weight を合算
+        w = 1.0 + (lbl * pos_weight).sum().item()
+        w = min(w, clip_val)            # 上限クリップ
         sample_weights.append(w)
-    sampler      = WeightedRandomSampler(sample_weights,
-                                         num_samples=len(sample_weights),
-                                         replacement=True)
-    train_loader = DataLoader(train_dataset,
-                              batch_size=batch_size,
-                              sampler=sampler)
+
+    sampler = WeightedRandomSampler(
+        weights=sample_weights,
+        num_samples=len(train_dataset),  # 1 epoch で全サンプルを 1 回ずつ抽出
+        replacement=False                # 同一サンプル重複を防ぐ
+    )
+
+    train_loader = DataLoader(
+        train_dataset,
+        batch_size=batch_size,
+        sampler=sampler
+    )
     val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
     
     # モデル、損失、オプティマイザの定義 (マルチラベルなのでBCEWithLogitsLoss)
+    # pos_weight を外し、Sampler 側で不均衡を補正
     model = TwoLevelViT(num_labels=num_labels).to(device)
-    criterion = nn.BCEWithLogitsLoss(pos_weight=pos_weight.to(device))
+    criterion = nn.BCEWithLogitsLoss()
     optimizer = optim.Adam(model.parameters(), lr=lr)
     
     # 学習ループ
