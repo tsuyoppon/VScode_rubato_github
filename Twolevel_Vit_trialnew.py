@@ -13,6 +13,7 @@ import segmentation_models_pytorch as smp
 from transformers import ViTModel
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
 import numpy as np
+from torch.optim.lr_scheduler import CosineAnnealingLR
 
 # ============================================================
 # 0) Excelファイルから画像パスとラベルデータを生成する関数。最初に文字列に変換してから処理
@@ -199,7 +200,7 @@ def main():
     # ハイパーパラメータ
     num_labels = 10   # 10チェック項目
     batch_size = 4
-    num_epochs = 20
+    num_epochs = 40          # allow longer training; early stopping will cut when needed
     lr = 1e-4
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -257,6 +258,11 @@ def main():
     model = TwoLevelViT(num_labels=num_labels).to(device)
     criterion = nn.BCEWithLogitsLoss()
     optimizer = optim.Adam(model.parameters(), lr=lr)
+    scheduler = CosineAnnealingLR(optimizer, T_max=num_epochs, eta_min=lr*0.1)
+    
+    best_f1 = 0.0
+    patience = 3
+    patience_counter = 0
     
     # 学習ループ
     for epoch in range(num_epochs):
@@ -296,12 +302,12 @@ def main():
         y_pred_opt = np.zeros_like(y_true)
         for c in range(num_labels):
             thr_list = np.linspace(0.05, 0.95, 19)
-            best_f1, best_thr = 0.0, 0.5
+            best_f1_c, best_thr = 0.0, 0.5
             for thr in thr_list:
                 pred_c = (y_prob[:, c] > thr).astype(int)
                 f1_c   = f1_score(y_true[:, c], pred_c, zero_division=0)
-                if f1_c > best_f1:
-                    best_f1, best_thr = f1_c, thr
+                if f1_c > best_f1_c:
+                    best_f1_c, best_thr = f1_c, thr
             best_thrs[c]      = best_thr
             y_pred_opt[:, c]  = (y_prob[:, c] > best_thr).astype(int)
 
@@ -317,13 +323,51 @@ def main():
               f"Precision={precision:.4f} "
               f"Recall={recall:.4f} "
               f"F1={f1:.4f}")
+
+        # ---- label‑wise ACC (validation) ----
+        acc_per_label_val = (y_pred_opt == y_true).mean(axis=0)  # shape (10,)
+
+        # ---- label‑wise ACC (training) ----
+        # Gather train predictions with current thresholds
+        model.eval()
+        train_labels_all, train_probs_all = [], []
+        with torch.no_grad():
+            for imgs_t, lbls_t in train_loader:
+                imgs_t = imgs_t.to(device)
+                logits_t = model(imgs_t)
+                probs_t  = torch.sigmoid(logits_t).cpu()
+                train_probs_all.append(probs_t)
+                train_labels_all.append(lbls_t)
+        y_true_train = torch.vstack(train_labels_all).numpy()
+        y_prob_train = torch.vstack(train_probs_all).numpy()
+        y_pred_train = (y_prob_train > best_thrs).astype(int)
+        acc_per_label_train = (y_pred_train == y_true_train).mean(axis=0)
+
+        # ---- display ----
+        print("Label‑wise ACC  (train):", np.round(acc_per_label_train, 2))
+        print("Label‑wise ACC  (val)  :", np.round(acc_per_label_val, 2))
+
+        # ---- scheduler & early stopping ----
+        scheduler.step()
+
+        if f1 > best_f1:
+            best_f1 = f1
+            patience_counter = 0
+            # save best model weights
+            torch.save(model.state_dict(), "two_level_vit_10label_best.pth")
+            np.save("label_thresholds_best.npy", best_thrs)
+        else:
+            patience_counter += 1
+            if patience_counter >= patience:
+                print(f"Early stopping triggered at epoch {epoch+1}. Best F1={best_f1:.4f}")
+                break
     
-    # ------ 最終エポックの閾値を保存 ------
-    np.save("label_thresholds.npy", best_thrs)
-    print("Per‑label thresholds saved to label_thresholds.npy")
-    # 学習済みモデルの保存
-    torch.save(model.state_dict(), "two_level_vit_10label.pth")
-    print("Training finished. Model saved.")
+    if patience_counter < patience:
+        np.save("label_thresholds.npy", best_thrs)
+        torch.save(model.state_dict(), "two_level_vit_10label.pth")
+        print("Training finished. Model & thresholds saved.")
+    else:
+        print("Training stopped early – best model already saved as *_best.pth")
 
 if __name__ == "__main__":
     main()
