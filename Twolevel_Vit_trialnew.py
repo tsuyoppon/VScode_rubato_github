@@ -199,7 +199,7 @@ def main():
     # ハイパーパラメータ
     num_labels = 10   # 10チェック項目
     batch_size = 4
-    num_epochs = 10
+    num_epochs = 20
     lr = 1e-4
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -277,28 +277,50 @@ def main():
         
         epoch_loss = total_loss / len(train_loader.dataset) if len(train_loader.dataset)>0 else 0.0
         
-        # 検証データで評価
+        # ----------------------- 検証 -----------------------
         model.eval()
-        all_labels = []
-        all_preds = []
+        all_labels, all_probs = [], []
         with torch.no_grad():
             for images, labels in val_loader:
                 images = images.to(device)
                 labels = labels.to(device).float()
                 logits = model(images)
-                preds = (torch.sigmoid(logits) > 0.5).float()
+                probs = torch.sigmoid(logits)
                 all_labels.append(labels.cpu())
-                all_preds.append(preds.cpu())
-        y_true = torch.vstack(all_labels).numpy()
-        y_pred = torch.vstack(all_preds).numpy()
-        acc = accuracy_score(y_true, y_pred)
-        precision = precision_score(y_true, y_pred, average='macro', zero_division=0)
-        recall = recall_score(y_true, y_pred, average='macro', zero_division=0)
-        f1 = f1_score(y_true, y_pred, average='macro', zero_division=0)
-        print(f"Epoch [{epoch+1}/{num_epochs}] Loss={epoch_loss:.4f} "
-              f"Val_Acc={acc*100:.2f}% Precision={precision:.4f} "
-              f"Recall={recall:.4f} F1={f1:.4f}")
+                all_probs.append(probs.cpu())
+        y_true  = torch.vstack(all_labels).numpy()   # (N,10)
+        y_prob  = torch.vstack(all_probs).numpy()    # (N,10)
+
+        # ---- ラベル別の最適閾値を探索 (F1 最大) ----
+        best_thrs = np.zeros(num_labels)
+        y_pred_opt = np.zeros_like(y_true)
+        for c in range(num_labels):
+            thr_list = np.linspace(0.05, 0.95, 19)
+            best_f1, best_thr = 0.0, 0.5
+            for thr in thr_list:
+                pred_c = (y_prob[:, c] > thr).astype(int)
+                f1_c   = f1_score(y_true[:, c], pred_c, zero_division=0)
+                if f1_c > best_f1:
+                    best_f1, best_thr = f1_c, thr
+            best_thrs[c]      = best_thr
+            y_pred_opt[:, c]  = (y_prob[:, c] > best_thr).astype(int)
+
+        # ---- 最適閾値でのマクロ指標 ----
+        acc       = accuracy_score(y_true, y_pred_opt)
+        precision = precision_score(y_true, y_pred_opt, average='macro', zero_division=0)
+        recall    = recall_score(y_true, y_pred_opt, average='macro', zero_division=0)
+        f1        = f1_score(y_true, y_pred_opt, average='macro', zero_division=0)
+
+        print(f"Epoch [{epoch+1}/{num_epochs}] "
+              f"Loss={epoch_loss:.4f} "
+              f"Val_Acc={acc*100:.2f}% "
+              f"Precision={precision:.4f} "
+              f"Recall={recall:.4f} "
+              f"F1={f1:.4f}")
     
+    # ------ 最終エポックの閾値を保存 ------
+    np.save("label_thresholds.npy", best_thrs)
+    print("Per‑label thresholds saved to label_thresholds.npy")
     # 学習済みモデルの保存
     torch.save(model.state_dict(), "two_level_vit_10label.pth")
     print("Training finished. Model saved.")
