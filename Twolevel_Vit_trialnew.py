@@ -151,8 +151,9 @@ class TwoLevelViT(nn.Module):
         # (D) Global Transformerで2系列を融合
         self.global_transformer = GlobalTransformer(hidden_dim=768, n_heads=8, num_layers=2)
         
-        # (E) 最終分類 (10チェックポイントのマルチラベル出力)
-        self.classifier = nn.Linear(768, num_labels)
+        # (E) 分岐ヘッド: ラベルごとに独立した線形層
+        self.dropout = nn.Dropout(0.2)
+        self.heads   = nn.ModuleList([nn.Linear(768, 1) for _ in range(num_labels)])
     
     def forward(self, slides):
         """
@@ -181,8 +182,10 @@ class TwoLevelViT(nn.Module):
         # fused_tokens: (seq_len_total, B, 768)
         fused_tokens = fused_tokens.mean(dim=0)  # (B, 768) - 平均プール
         
-        # (E) 最終分類: 10項目のスコア
-        logits = self.classifier(fused_tokens)  # (B, 10)
+        # (E) Dropout → ラベル別ヘッド
+        x = self.dropout(fused_tokens)            # (B,768)
+        logits_list = [head(x) for head in self.heads]   # [(B,1)]*10
+        logits = torch.cat(logits_list, dim=1)           # (B,10)
         return logits
 
 # ============================================================
@@ -228,6 +231,12 @@ def main():
         neg_counts += 1 - lbl
     pos_weight = neg_counts / (pos_counts + 1e-6)   # avoid division‑by‑zero
     print(f"pos_weight tensor (positive class weights): {pos_weight}")
+    # ---- (soft) pos_weight via exponential down‑scaling ----
+    alpha = 0.5                         # 0.3〜0.7 が妥当域
+    pos_weight_adj = torch.pow(pos_weight, alpha)  # 控えめ補正
+    pos_weight_clip = 5.0
+    pos_weight_adj = torch.clamp(pos_weight_adj, max=pos_weight_clip)
+    print(f"soft pos_weight (alpha={alpha}): {pos_weight_adj}")
     # =========================================================================================
     # ----- WeightedRandomSampler でラベル不均衡に対処 -----
     #   (重み平滑化 + 重複防止 + clip)
@@ -256,7 +265,7 @@ def main():
     # モデル、損失、オプティマイザの定義 (マルチラベルなのでBCEWithLogitsLoss)
     # pos_weight を外し、Sampler 側で不均衡を補正
     model = TwoLevelViT(num_labels=num_labels).to(device)
-    criterion = nn.BCEWithLogitsLoss()
+    criterion = nn.BCEWithLogitsLoss(reduction='none')   # 個別損失を取得
     optimizer = optim.Adam(model.parameters(), lr=lr)
     scheduler = CosineAnnealingLR(optimizer, T_max=10, eta_min=lr*0.1)  # shorter cycle
     
@@ -276,7 +285,10 @@ def main():
             
             optimizer.zero_grad()
             outputs = model(images)              # (B,10)
-            loss = criterion(outputs, labels)
+            # ラベル別 BCE -> 平均
+            loss_tensor = criterion(outputs, labels)          # (B,10)
+            loss_tensor = loss_tensor * pos_weight_adj.to(device)  # ラベル別重み
+            loss = loss_tensor.mean()
             loss.backward()
             optimizer.step()
             
