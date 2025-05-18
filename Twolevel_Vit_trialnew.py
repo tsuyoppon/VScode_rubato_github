@@ -258,10 +258,11 @@ def main():
     model = TwoLevelViT(num_labels=num_labels).to(device)
     criterion = nn.BCEWithLogitsLoss()
     optimizer = optim.Adam(model.parameters(), lr=lr)
-    scheduler = CosineAnnealingLR(optimizer, T_max=num_epochs, eta_min=lr*0.1)
+    scheduler = CosineAnnealingLR(optimizer, T_max=10, eta_min=lr*0.1)  # shorter cycle
     
     best_f1 = 0.0
-    patience = 3
+    f1_history = []            # keep track of recent F1 values for smoothing
+    patience = 6      # allow deeper valley before stopping
     patience_counter = 0
     
     # 学習ループ
@@ -323,6 +324,7 @@ def main():
               f"Precision={precision:.4f} "
               f"Recall={recall:.4f} "
               f"F1={f1:.4f}")
+        f1_history.append(f1)
 
         # ---- label‑wise ACC (validation) ----
         acc_per_label_val = (y_pred_opt == y_true).mean(axis=0)  # shape (10,)
@@ -350,16 +352,18 @@ def main():
         # ---- scheduler & early stopping ----
         scheduler.step()
 
-        if f1 > best_f1:
-            best_f1 = f1
+        # compute 3-epoch moving average for early stopping decision
+        smoothed_f1 = np.mean(f1_history[-3:]) if len(f1_history) >= 3 else f1
+
+        if smoothed_f1 > best_f1:
+            best_f1 = smoothed_f1
             patience_counter = 0
-            # save best model weights
             torch.save(model.state_dict(), "two_level_vit_10label_best.pth")
             np.save("label_thresholds_best.npy", best_thrs)
         else:
             patience_counter += 1
             if patience_counter >= patience:
-                print(f"Early stopping triggered at epoch {epoch+1}. Best F1={best_f1:.4f}")
+                print(f"Early stopping triggered at epoch {epoch+1}. Best smoothed F1={best_f1:.4f}")
                 break
     
     if patience_counter < patience:
