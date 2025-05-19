@@ -160,7 +160,7 @@ class TwoLevelViT(nn.Module):
             self.heads[idx] = nn.Sequential(
                 nn.Linear(768, 128),
                 nn.GELU(),
-                nn.Dropout(0.3),
+                nn.Dropout(0.4) if idx in (3,5) else nn.Dropout(0.3),
                 nn.Linear(128, 1)
             )
     
@@ -249,7 +249,7 @@ def main():
     # =========================================================================================
     # ----- WeightedRandomSampler でラベル不均衡に対処 -----
     #   (重み平滑化 + 重複防止 + clip)
-    clip_val = 5.0      # 重みの上限
+    clip_val = 4.0      # 重みの上限 (Precision 重視に緩和)
     sample_weights = []
     for idx in train_dataset.indices:
         lbl = torch.tensor(dataset.labels[idx])
@@ -275,7 +275,7 @@ def main():
     # pos_weight を外し、Sampler 側で不均衡を補正
     model = TwoLevelViT(num_labels=num_labels).to(device)
     criterion = nn.BCEWithLogitsLoss(reduction='none')   # 個別損失を取得
-    optimizer = optim.Adam(model.parameters(), lr=lr)
+    optimizer = optim.Adam(model.parameters(), lr=lr, weight_decay=1e-4)
     scheduler = CosineAnnealingLR(optimizer, T_max=10, eta_min=lr*0.1)  # shorter cycle
     
     best_f1 = 0.0
@@ -297,7 +297,7 @@ def main():
             # ラベル別 BCE -> 平均
             loss_tensor = criterion(outputs, labels)          # (B,10)
             # ---- DRW: epoch 前半は重みなし、後半で適用 ----
-            if epoch >= 15:                             # drw_start = 15
+            if epoch >= 20:                             # drw_start = 20
                 loss_tensor = loss_tensor * pos_weight_adj.to(device)
             loss = loss_tensor.mean()
             loss.backward()
@@ -324,6 +324,7 @@ def main():
         # ---- ラベル別の最適閾値を探索 (F1 最大) ----
         best_thrs = np.zeros(num_labels)
         y_pred_opt = np.zeros_like(y_true)
+        beta_dict = {1: 0.95, 4: 0.95}   # 0-indexed; label2 and label5
         for c in range(num_labels):
             thr_list = np.linspace(0.05, 0.95, 19)
             best_f1_c, best_thr = 0.0, 0.5
@@ -332,7 +333,7 @@ def main():
                 f1_c   = f1_score(y_true[:, c], pred_c, zero_division=0)
                 if f1_c > best_f1_c:
                     best_f1_c, best_thr = f1_c, thr
-            best_thrs[c]      = best_thr
+            best_thrs[c]      = best_thr * beta_dict.get(c, 1.0)
             y_pred_opt[:, c]  = (y_prob[:, c] > best_thr).astype(int)
 
         # ---- 最適閾値でのマクロ指標 ----
