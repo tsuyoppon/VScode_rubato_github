@@ -154,6 +154,15 @@ class TwoLevelViT(nn.Module):
         # (E) 分岐ヘッド: ラベルごとに独立した線形層
         self.dropout = nn.Dropout(0.2)
         self.heads   = nn.ModuleList([nn.Linear(768, 1) for _ in range(num_labels)])
+        # --- replace heads for labels 4, 6, 7 with 2‑layer MLP (128 units) ---
+        replace_ids = [3, 5, 6]   # 0‑indexed positions
+        for idx in replace_ids:
+            self.heads[idx] = nn.Sequential(
+                nn.Linear(768, 128),
+                nn.GELU(),
+                nn.Dropout(0.3),
+                nn.Linear(128, 1)
+            )
     
     def forward(self, slides):
         """
