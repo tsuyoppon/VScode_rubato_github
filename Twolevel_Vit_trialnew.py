@@ -193,7 +193,7 @@ class TwoLevelViT(nn.Module):
 # ============================================================
 def main():
     # 学習用Excelファイルと画像ディレクトリのパス
-    excel_path = "/Users/scide_furusawa/Documents/書類 - 古澤剛のMacBook Pro (2) - 1/Rubato 画像認識/Rubatoスライド評価正解データ_trial2.xlsx"  # Excelファイルのパス
+    excel_path = "/Users/scide_furusawa/Documents/書類 - 古澤剛のMacBook Pro (2) - 1/Rubato 画像認識/Rubatoスライド評価正解データ_trial3.xlsx"  # Excelファイルのパス
     base_img_dir = "学習用画像_2000818東大スライドV6(1～892）"  # 学習用画像ファイルが保存されているディレクトリ
     # ※ ここは実際の環境に合わせて変更してください
     
@@ -232,9 +232,9 @@ def main():
     pos_weight = neg_counts / (pos_counts + 1e-6)   # avoid division‑by‑zero
     print(f"pos_weight tensor (positive class weights): {pos_weight}")
     # ---- (soft) pos_weight via exponential down‑scaling ----
-    alpha = 0.5                         # 0.3〜0.7 が妥当域
+    alpha = 0.6                         # 0.6 にアップ (Recall 重視寄り)
     pos_weight_adj = torch.pow(pos_weight, alpha)  # 控えめ補正
-    pos_weight_clip = 5.0
+    pos_weight_clip = 3.0               # 上限を 3 に引き下げて過補正防止
     pos_weight_adj = torch.clamp(pos_weight_adj, max=pos_weight_clip)
     print(f"soft pos_weight (alpha={alpha}): {pos_weight_adj}")
     # =========================================================================================
@@ -287,7 +287,9 @@ def main():
             outputs = model(images)              # (B,10)
             # ラベル別 BCE -> 平均
             loss_tensor = criterion(outputs, labels)          # (B,10)
-            loss_tensor = loss_tensor * pos_weight_adj.to(device)  # ラベル別重み
+            # ---- DRW: epoch 前半は重みなし、後半で適用 ----
+            if epoch >= 15:                             # drw_start = 15
+                loss_tensor = loss_tensor * pos_weight_adj.to(device)
             loss = loss_tensor.mean()
             loss.backward()
             optimizer.step()
