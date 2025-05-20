@@ -14,6 +14,7 @@ from transformers import ViTModel
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
 import numpy as np
 from torch.optim.lr_scheduler import CosineAnnealingLR
+import random
 
 # ============================================================
 # 0) Excelファイルから画像パスとラベルデータを生成する関数。最初に文字列に変換してから処理
@@ -227,10 +228,33 @@ def main():
     
     # データセットとDataLoader作成
     dataset = SlideDataset(image_paths, slide_labels, transform=transform)
-    # 訓練用と検証用に分割
-    train_size = int(0.8 * len(dataset))
-    val_size = len(dataset) - train_size
-    train_dataset, val_dataset = torch.utils.data.random_split(dataset, [train_size, val_size])
+    # ----- Balanced Validation: per‑label pos==neg -----
+    num_labels = 10
+    P = [[] for _ in range(num_labels)]
+    N = [[] for _ in range(num_labels)]
+    for idx, lbl in enumerate(dataset.labels):
+        for c in range(num_labels):
+            if lbl[c] == 1:
+                P[c].append(idx)
+            else:
+                N[c].append(idx)
+
+    rng = random.Random(42)
+    val_idx_set = set()
+    for c in range(num_labels):
+        m = min(len(P[c]), len(N[c]))   # 最大でも 1:1
+        if m == 0:
+            continue                    # ラベルc に正か負のどちらかが無ければスキップ
+        val_idx_set.update(rng.sample(P[c], m))
+        val_idx_set.update(rng.sample(N[c], m))
+
+    val_indices   = sorted(list(val_idx_set))
+    train_indices = sorted(list(set(range(len(dataset))) - val_idx_set))
+
+    train_dataset = torch.utils.data.Subset(dataset, train_indices)
+    val_dataset   = torch.utils.data.Subset(dataset, val_indices)
+
+    print(f"Balanced Val size: {len(val_dataset)}  Train size: {len(train_dataset)}")
     # ====== Compute per-label pos_weight for BCEWithLogitsLoss to handle class imbalance ======
     pos_counts = torch.zeros(num_labels)
     neg_counts = torch.zeros(num_labels)
