@@ -241,7 +241,7 @@ def main():
     pos_weight = neg_counts / (pos_counts + 1e-6)   # avoid division‑by‑zero
     print(f"pos_weight tensor (positive class weights): {pos_weight}")
     # ---- (soft) pos_weight via exponential down‑scaling ----
-    alpha = 0.6                         # 0.6 にアップ (Recall 重視寄り)
+    alpha = 0.55                        # 0.55 に緩和
     pos_weight_adj = torch.pow(pos_weight, alpha)  # 控えめ補正
     pos_weight_clip = 3.0               # 上限を 3 に引き下げて過補正防止
     pos_weight_adj = torch.clamp(pos_weight_adj, max=pos_weight_clip)
@@ -297,7 +297,7 @@ def main():
             # ラベル別 BCE -> 平均
             loss_tensor = criterion(outputs, labels)          # (B,10)
             # ---- DRW: epoch 前半は重みなし、後半で適用 ----
-            if epoch >= 20:                             # drw_start = 20
+            if epoch >= 22:                             # drw_start = 22
                 loss_tensor = loss_tensor * pos_weight_adj.to(device)
             loss = loss_tensor.mean()
             loss.backward()
@@ -324,7 +324,7 @@ def main():
         # ---- ラベル別の最適閾値を探索 (F1 最大) ----
         best_thrs = np.zeros(num_labels)
         y_pred_opt = np.zeros_like(y_true)
-        beta_dict = {1: 0.95, 4: 0.95}   # 0-indexed; label2 and label5
+        beta_dict = {1: 0.95, 4: 0.95, 8: 0.90}   # 0-indexed; label2, label5, label9 (index8)
         for c in range(num_labels):
             thr_list = np.linspace(0.05, 0.95, 19)
             best_f1_c, best_thr = 0.0, 0.5
