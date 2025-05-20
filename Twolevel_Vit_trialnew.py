@@ -228,49 +228,15 @@ def main():
     # データセットとDataLoader作成
     dataset = SlideDataset(image_paths, slide_labels, transform=transform)
 
-    # ======== Balanced Val split: per-label 1:1, capped at 20% of dataset ========
-    import random
-    num_labels = 10
-    P = [[] for _ in range(num_labels)]  # positive indices for each label
-    N = [[] for _ in range(num_labels)]  # negative indices for each label
-    for idx, lbl in enumerate(dataset.labels):
-        for c in range(num_labels):
-            if lbl[c] == 1:
-                P[c].append(idx)
-            else:
-                N[c].append(idx)
-
-    rng = random.Random(42)             # 再現性用シード
-    val_idx_set = set()
-
-    target_ratio = 0.20                 # ≈20 % of total dataset
-    max_val_size = int(target_ratio * len(dataset))
-
-    # --- first pass: ensure 1:1 per label, capped by availability ---
-    for c in range(num_labels):
-        m = min(len(P[c]), len(N[c]))
-        if m == 0:
-            continue
-        # tentative addition
-        sel_pos = rng.sample(P[c], m)
-        sel_neg = rng.sample(N[c], m)
-        val_idx_set.update(sel_pos)
-        val_idx_set.update(sel_neg)
-
-    # --- second pass: if Val is >20% trim randomly ---
-    if len(val_idx_set) > max_val_size:
-        val_idx_list = list(val_idx_set)
-        rng.shuffle(val_idx_list)
-        val_idx_set = set(val_idx_list[:max_val_size])
-
-    val_indices   = sorted(list(val_idx_set))
-    train_indices = sorted(list(set(range(len(dataset))) - val_idx_set))
-
-    # ---- fallback check ----
-    if len(train_indices) == 0:
-        raise RuntimeError("Balanced‑Val split emptied the train set. Lower target_ratio or per‑label sample cap.")
-
-    print(f"Balanced Val size: {len(val_indices)}  Train size: {len(train_indices)}")
+    # ======== Simple random split: 80% train, 20% val ========
+    from sklearn.model_selection import train_test_split
+    indices = np.arange(len(dataset))
+    train_indices, val_indices = train_test_split(
+        indices, train_size=0.8, test_size=0.2, random_state=42, stratify=None
+    )
+    train_indices = sorted(train_indices.tolist())
+    val_indices = sorted(val_indices.tolist())
+    print(f"Random split: Train size: {len(train_indices)}  Val size: {len(val_indices)}")
 
     train_dataset = torch.utils.data.Subset(dataset, train_indices)
     val_dataset   = torch.utils.data.Subset(dataset, val_indices)
@@ -415,6 +381,7 @@ def main():
         # ---- display ----
         print("Label‑wise ACC  (train):", np.round(acc_per_label_train, 2))
         print("Label‑wise ACC  (val)  :", np.round(acc_per_label_val, 2))
+        balanced_eval(y_true, y_pred_opt, num_labels=num_labels)
 
         # ---- scheduler & early stopping ----
         scheduler.step()
@@ -439,6 +406,37 @@ def main():
         print("Training finished. Model & thresholds saved.")
     else:
         print("Training stopped early – best model already saved as *_best.pth")
+
+def balanced_eval(y_true, y_pred, num_labels=10, random_seed=42):
+    import numpy as np
+    from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
+    np.random.seed(random_seed)
+    indices = []
+    for c in range(num_labels):
+        pos_idx = np.where(y_true[:, c] == 1)[0]
+        neg_idx = np.where(y_true[:, c] == 0)[0]
+        m = min(len(pos_idx), len(neg_idx))
+        if m == 0:
+            continue
+        sel_pos = np.random.choice(pos_idx, m, replace=False)
+        sel_neg = np.random.choice(neg_idx, m, replace=False)
+        indices.extend(sel_pos)
+        indices.extend(sel_neg)
+    indices = np.unique(indices)
+    if len(indices) == 0:
+        print("\n--- Balanced subset (label-wise 1:1): No sufficient samples to evaluate. ---")
+        return
+    y_true_bal = y_true[indices]
+    y_pred_bal = y_pred[indices]
+    acc       = accuracy_score(y_true_bal, y_pred_bal)
+    precision = precision_score(y_true_bal, y_pred_bal, average='macro', zero_division=0)
+    recall    = recall_score(y_true_bal, y_pred_bal, average='macro', zero_division=0)
+    f1        = f1_score(y_true_bal, y_pred_bal, average='macro', zero_division=0)
+    acc_label = (y_true_bal == y_pred_bal).mean(axis=0)
+    print("\n--- Balanced subset (label-wise 1:1) ---")
+    print(f"Balanced Val size: {len(indices)}")
+    print(f"Balanced Acc={acc:.4f} Precision={precision:.4f} Recall={recall:.4f} F1={f1:.4f}")
+    print("Label‑wise ACC (balanced):", np.round(acc_label, 2))
 
 if __name__ == "__main__":
     main()
