@@ -14,7 +14,6 @@ from transformers import ViTModel
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
 import numpy as np
 from torch.optim.lr_scheduler import CosineAnnealingLR
-import random
 
 # ============================================================
 # 0) Excelファイルから画像パスとラベルデータを生成する関数。最初に文字列に変換してから処理
@@ -228,10 +227,12 @@ def main():
     
     # データセットとDataLoader作成
     dataset = SlideDataset(image_paths, slide_labels, transform=transform)
-    # ----- Balanced Validation: per‑label pos==neg -----
+
+    # ======== Balanced Val split: per-label 1:1, capped at 20% of dataset ========
+    import random
     num_labels = 10
-    P = [[] for _ in range(num_labels)]
-    N = [[] for _ in range(num_labels)]
+    P = [[] for _ in range(num_labels)]  # positive indices for each label
+    N = [[] for _ in range(num_labels)]  # negative indices for each label
     for idx, lbl in enumerate(dataset.labels):
         for c in range(num_labels):
             if lbl[c] == 1:
@@ -239,22 +240,40 @@ def main():
             else:
                 N[c].append(idx)
 
-    rng = random.Random(42)
+    rng = random.Random(42)             # 再現性用シード
     val_idx_set = set()
+
+    target_ratio = 0.20                 # ≈20 % of total dataset
+    max_val_size = int(target_ratio * len(dataset))
+
+    # --- first pass: ensure 1:1 per label, capped by availability ---
     for c in range(num_labels):
-        m = min(len(P[c]), len(N[c]))   # 最大でも 1:1
+        m = min(len(P[c]), len(N[c]))
         if m == 0:
-            continue                    # ラベルc に正か負のどちらかが無ければスキップ
-        val_idx_set.update(rng.sample(P[c], m))
-        val_idx_set.update(rng.sample(N[c], m))
+            continue
+        # tentative addition
+        sel_pos = rng.sample(P[c], m)
+        sel_neg = rng.sample(N[c], m)
+        val_idx_set.update(sel_pos)
+        val_idx_set.update(sel_neg)
+
+    # --- second pass: if Val is >20% trim randomly ---
+    if len(val_idx_set) > max_val_size:
+        val_idx_list = list(val_idx_set)
+        rng.shuffle(val_idx_list)
+        val_idx_set = set(val_idx_list[:max_val_size])
 
     val_indices   = sorted(list(val_idx_set))
     train_indices = sorted(list(set(range(len(dataset))) - val_idx_set))
 
+    # ---- fallback check ----
+    if len(train_indices) == 0:
+        raise RuntimeError("Balanced‑Val split emptied the train set. Lower target_ratio or per‑label sample cap.")
+
+    print(f"Balanced Val size: {len(val_indices)}  Train size: {len(train_indices)}")
+
     train_dataset = torch.utils.data.Subset(dataset, train_indices)
     val_dataset   = torch.utils.data.Subset(dataset, val_indices)
-
-    print(f"Balanced Val size: {len(val_dataset)}  Train size: {len(train_dataset)}")
     # ====== Compute per-label pos_weight for BCEWithLogitsLoss to handle class imbalance ======
     pos_counts = torch.zeros(num_labels)
     neg_counts = torch.zeros(num_labels)
