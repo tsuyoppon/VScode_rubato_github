@@ -382,6 +382,7 @@ def main():
         if smoothed_f1 > best_f1:
             best_f1 = smoothed_f1
             patience_counter = 0
+            print(f"Model weights saved at epoch {epoch+1} (smoothed F1={smoothed_f1:.4f})")
             torch.save(model.state_dict(), "two_level_vit_10label_best.pth")
             np.save("label_thresholds_best.npy", best_thrs)
         else:
@@ -393,9 +394,66 @@ def main():
     if patience_counter < patience:
         np.save("label_thresholds.npy", best_thrs)
         torch.save(model.state_dict(), "two_level_vit_10label.pth")
+        print(f"Final model weights saved at epoch {epoch+1}")
         print("Training finished. Model & thresholds saved.")
     else:
         print("Training stopped early – best model already saved as *_best.pth")
+
+    # -------------- Balanced 1:1 Setで評価 --------------
+    print("=== Evaluating on Balanced 1:1 Positive:Negative Sets ===")
+    eval_on_balanced_sets(model, dataset, device, best_thrs)
+
+def eval_on_balanced_sets(model, dataset, device, best_thrs=None):
+    from torch.utils.data import DataLoader, Subset
+    from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
+    import numpy as np
+
+    num_labels = 10
+    batch_size = 8
+    model.eval()
+    print("\n=== Balanced Set Evaluation (Per Label) ===")
+    for c in range(num_labels):
+        # 1:1バランス化されたデータセット作成
+        pos_indices = [i for i, lbl in enumerate(dataset.labels) if lbl[c] == 1]
+        neg_indices = [i for i, lbl in enumerate(dataset.labels) if lbl[c] == 0]
+        n = min(len(pos_indices), len(neg_indices))
+        if n == 0:
+            print(f"Label {c+1}: スキップ（片方しか存在しない）")
+            continue
+        subset_indices = pos_indices[:n] + neg_indices[:n]
+        balanced_ds = Subset(dataset, subset_indices)
+        loader = DataLoader(balanced_ds, batch_size=batch_size, shuffle=False)
+
+        all_labels, all_probs = [], []
+        with torch.no_grad():
+            for imgs, lbls in loader:
+                imgs = imgs.to(device)
+                logits = model(imgs)
+                probs = torch.sigmoid(logits).cpu()
+                all_probs.append(probs)
+                all_labels.append(lbls)
+        y_true = torch.vstack(all_labels).numpy()[:, c]
+        y_prob = torch.vstack(all_probs).numpy()[:, c]
+
+        # (A) 閾値0.5
+        y_pred_05 = (y_prob > 0.5).astype(int)
+        acc_05 = accuracy_score(y_true, y_pred_05)
+        prec_05 = precision_score(y_true, y_pred_05, zero_division=0)
+        rec_05 = recall_score(y_true, y_pred_05, zero_division=0)
+        f1_05 = f1_score(y_true, y_pred_05, zero_division=0)
+
+        # (B) 最適閾値
+        if best_thrs is not None:
+            thr = best_thrs[c]
+            y_pred_best = (y_prob > thr).astype(int)
+            acc_best = accuracy_score(y_true, y_pred_best)
+            prec_best = precision_score(y_true, y_pred_best, zero_division=0)
+            rec_best = recall_score(y_true, y_pred_best, zero_division=0)
+            f1_best = f1_score(y_true, y_pred_best, zero_division=0)
+            print(f"Label {c+1}: ACC_0.5={acc_05:.3f} Prec_0.5={prec_05:.3f} Rec_0.5={rec_05:.3f} F1_0.5={f1_05:.3f} | "
+                  f"ACC_best={acc_best:.3f} Prec_best={prec_best:.3f} Rec_best={rec_best:.3f} F1_best={f1_best:.3f} (thr={thr:.2f})")
+        else:
+            print(f"Label {c+1}: ACC_0.5={acc_05:.3f} Prec_0.5={prec_05:.3f} Rec_0.5={rec_05:.3f} F1_0.5={f1_05:.3f}")
 
 if __name__ == "__main__":
     main()
