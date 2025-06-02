@@ -202,7 +202,7 @@ class TwoLevelViT(nn.Module):
 # ============================================================
 def main():
     # 学習用Excelファイルと画像ディレクトリのパス
-    excel_path = "/Users/scide_furusawa/Documents/書類 - 古澤剛のMacBook Pro (2) - 1/Rubato 画像認識/Rubatoスライド評価正解データ_trial3.xlsx"  # Excelファイルのパス
+    excel_path = "/Users/scide_furusawa/Documents/書類 - 古澤剛のMacBook Pro (2) - 1/Rubato 画像認識/Rubatoスライド評価正解データ_trial4.xlsx"  # Excelファイルのパス
     base_img_dir = "学習用画像_2000818東大スライドV6(1～892）"  # 学習用画像ファイルが保存されているディレクトリ
     # ※ ここは実際の環境に合わせて変更してください
     
@@ -211,7 +211,7 @@ def main():
     
     # ハイパーパラメータ
     num_labels = 10   # 10チェック項目
-    batch_size = 4
+    batch_size = 8
     num_epochs = 40          # allow longer training; early stopping will cut when needed
     lr = 1e-4
 
@@ -280,7 +280,7 @@ def main():
     
     best_f1 = 0.0
     f1_history = []            # keep track of recent F1 values for smoothing
-    patience = 6      # allow deeper valley before stopping
+    patience = 10     # allow deeper valley before stopping
     patience_counter = 0
     
     # 学習ループ
@@ -296,8 +296,8 @@ def main():
             outputs = model(images)              # (B,10)
             # ラベル別 BCE -> 平均
             loss_tensor = criterion(outputs, labels)          # (B,10)
-            # ---- DRW: epoch 前半は重みなし、後半で適用 ----
-            if epoch >= 22:                             # drw_start = 22
+            # ---- DRW: epoch 前半は重みなし、後半で適用　  epoch=10から適用 ----
+            if epoch >= 10:                             # drw_start = 10
                 loss_tensor = loss_tensor * pos_weight_adj.to(device)
             loss = loss_tensor.mean()
             loss.backward()
@@ -409,7 +409,7 @@ def eval_on_balanced_sets(model, dataset, device, best_thrs=None):
     import numpy as np
 
     num_labels = 10
-    batch_size = 8
+    batch_size = 4
     model.eval()
     print("\n=== Balanced Set Evaluation (Per Label) ===")
     for c in range(num_labels):
