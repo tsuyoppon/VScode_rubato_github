@@ -11,8 +11,16 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # モデルのロード（num_labels=10）
 model = TwoLevelViT(num_labels=10).to(device)
-model.load_state_dict(torch.load("two_level_vit_10label.pth", map_location=device))
+model.load_state_dict(torch.load("two_level_vit_10label_best_0528.pth", map_location=device))
 model.eval()
+
+# 最適閾値の読み込み
+try:
+    optimal_thresholds = np.load("label_thresholds_best_0528.npy")
+    print(f"最適閾値を読み込みました: {optimal_thresholds}")
+except FileNotFoundError:
+    print("最適閾値ファイルが見つかりません。デフォルト閾値0.5を使用します。")
+    optimal_thresholds = np.full(10, 0.5)
 
 # 学習時と同様の前処理
 transform = transforms.Compose([
@@ -68,8 +76,10 @@ def predict_image(img: Image.Image):
     # (A) 予測（通常のフォワードパス）
     with torch.no_grad():
         logits = model(input_tensor)
-        preds = torch.sigmoid(logits)
-        predicted_labels = (preds > 0.5).int().cpu().numpy()[0]
+        preds = torch.sigmoid(logits).cpu().numpy()[0]  # (10,) の確率値
+        # 最適閾値を使用した予測
+        predicted_labels = (preds > optimal_thresholds).astype(int)
+    
     result_items = [channel_items[i] for i, val in enumerate(predicted_labels) if val == 1]
     
     # (B) Attention Rolloutによるヒートマップの計算

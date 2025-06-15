@@ -202,7 +202,7 @@ class TwoLevelViT(nn.Module):
 # ============================================================
 def main():
     # 学習用Excelファイルと画像ディレクトリのパス
-    excel_path = "/Users/scide_furusawa/Documents/書類 - 古澤剛のMacBook Pro (2) - 1/Rubato 画像認識/Rubatoスライド評価正解データ_trial3.xlsx"  # Excelファイルのパス
+    excel_path = "/Users/scide_furusawa/Documents/書類 - 古澤剛のMacBook Pro (2) - 1/Rubato 画像認識/Rubatoスライド評価正解データ_trial4.xlsx"  # Excelファイルのパス
     base_img_dir = "学習用画像_2000818東大スライドV6(1～892）"  # 学習用画像ファイルが保存されているディレクトリ
     # ※ ここは実際の環境に合わせて変更してください
     
@@ -211,7 +211,7 @@ def main():
     
     # ハイパーパラメータ
     num_labels = 10   # 10チェック項目
-    batch_size = 4
+    batch_size = 8
     num_epochs = 40          # allow longer training; early stopping will cut when needed
     lr = 1e-4
 
@@ -289,7 +289,7 @@ def main():
     
     best_f1 = 0.0
     f1_history = []            # keep track of recent F1 values for smoothing
-    patience = 6      # allow deeper valley before stopping
+    patience = 10     # allow deeper valley before stopping
     patience_counter = 0
     
     # 学習ループ
@@ -305,8 +305,8 @@ def main():
             outputs = model(images)              # (B,10)
             # ラベル別 BCE -> 平均
             loss_tensor = criterion(outputs, labels)          # (B,10)
-            # ---- DRW: epoch 前半は重みなし、後半で適用 ----
-            if epoch >= 22:                             # drw_start = 22
+            # ---- DRW: epoch 前半は重みなし、後半で適用　  epoch=10から適用 ----
+            if epoch >= 10:                             # drw_start = 10
                 loss_tensor = loss_tensor * pos_weight_adj.to(device)
             loss = loss_tensor.mean()
             loss.backward()
@@ -381,7 +381,6 @@ def main():
         # ---- display ----
         print("Label‑wise ACC  (train):", np.round(acc_per_label_train, 2))
         print("Label‑wise ACC  (val)  :", np.round(acc_per_label_val, 2))
-        balanced_eval(y_true, y_pred_opt, num_labels=num_labels)
 
         # ---- scheduler & early stopping ----
         scheduler.step()
@@ -392,6 +391,7 @@ def main():
         if smoothed_f1 > best_f1:
             best_f1 = smoothed_f1
             patience_counter = 0
+            print(f"Model weights saved at epoch {epoch+1} (smoothed F1={smoothed_f1:.4f})")
             torch.save(model.state_dict(), "two_level_vit_10label_best.pth")
             np.save("label_thresholds_best.npy", best_thrs)
         else:
@@ -403,40 +403,66 @@ def main():
     if patience_counter < patience:
         np.save("label_thresholds.npy", best_thrs)
         torch.save(model.state_dict(), "two_level_vit_10label.pth")
+        print(f"Final model weights saved at epoch {epoch+1}")
         print("Training finished. Model & thresholds saved.")
     else:
         print("Training stopped early – best model already saved as *_best.pth")
 
-def balanced_eval(y_true, y_pred, num_labels=10, random_seed=42):
-    import numpy as np
+    # -------------- Balanced 1:1 Setで評価 --------------
+    print("=== Evaluating on Balanced 1:1 Positive:Negative Sets ===")
+    eval_on_balanced_sets(model, dataset, device, best_thrs)
+
+def eval_on_balanced_sets(model, dataset, device, best_thrs=None):
+    from torch.utils.data import DataLoader, Subset
     from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
-    np.random.seed(random_seed)
-    indices = []
+    import numpy as np
+
+    num_labels = 10
+    batch_size = 4
+    model.eval()
+    print("\n=== Balanced Set Evaluation (Per Label) ===")
     for c in range(num_labels):
-        pos_idx = np.where(y_true[:, c] == 1)[0]
-        neg_idx = np.where(y_true[:, c] == 0)[0]
-        m = min(len(pos_idx), len(neg_idx))
-        if m == 0:
+        # 1:1バランス化されたデータセット作成
+        pos_indices = [i for i, lbl in enumerate(dataset.labels) if lbl[c] == 1]
+        neg_indices = [i for i, lbl in enumerate(dataset.labels) if lbl[c] == 0]
+        n = min(len(pos_indices), len(neg_indices))
+        if n == 0:
+            print(f"Label {c+1}: スキップ（片方しか存在しない）")
             continue
-        sel_pos = np.random.choice(pos_idx, m, replace=False)
-        sel_neg = np.random.choice(neg_idx, m, replace=False)
-        indices.extend(sel_pos)
-        indices.extend(sel_neg)
-    indices = np.unique(indices)
-    if len(indices) == 0:
-        print("\n--- Balanced subset (label-wise 1:1): No sufficient samples to evaluate. ---")
-        return
-    y_true_bal = y_true[indices]
-    y_pred_bal = y_pred[indices]
-    acc       = accuracy_score(y_true_bal, y_pred_bal)
-    precision = precision_score(y_true_bal, y_pred_bal, average='macro', zero_division=0)
-    recall    = recall_score(y_true_bal, y_pred_bal, average='macro', zero_division=0)
-    f1        = f1_score(y_true_bal, y_pred_bal, average='macro', zero_division=0)
-    acc_label = (y_true_bal == y_pred_bal).mean(axis=0)
-    print("\n--- Balanced subset (label-wise 1:1) ---")
-    print(f"Balanced Val size: {len(indices)}")
-    print(f"Balanced Acc={acc:.4f} Precision={precision:.4f} Recall={recall:.4f} F1={f1:.4f}")
-    print("Label‑wise ACC (balanced):", np.round(acc_label, 2))
+        subset_indices = pos_indices[:n] + neg_indices[:n]
+        balanced_ds = Subset(dataset, subset_indices)
+        loader = DataLoader(balanced_ds, batch_size=batch_size, shuffle=False)
+
+        all_labels, all_probs = [], []
+        with torch.no_grad():
+            for imgs, lbls in loader:
+                imgs = imgs.to(device)
+                logits = model(imgs)
+                probs = torch.sigmoid(logits).cpu()
+                all_probs.append(probs)
+                all_labels.append(lbls)
+        y_true = torch.vstack(all_labels).numpy()[:, c]
+        y_prob = torch.vstack(all_probs).numpy()[:, c]
+
+        # (A) 閾値0.5
+        y_pred_05 = (y_prob > 0.5).astype(int)
+        acc_05 = accuracy_score(y_true, y_pred_05)
+        prec_05 = precision_score(y_true, y_pred_05, zero_division=0)
+        rec_05 = recall_score(y_true, y_pred_05, zero_division=0)
+        f1_05 = f1_score(y_true, y_pred_05, zero_division=0)
+
+        # (B) 最適閾値
+        if best_thrs is not None:
+            thr = best_thrs[c]
+            y_pred_best = (y_prob > thr).astype(int)
+            acc_best = accuracy_score(y_true, y_pred_best)
+            prec_best = precision_score(y_true, y_pred_best, zero_division=0)
+            rec_best = recall_score(y_true, y_pred_best, zero_division=0)
+            f1_best = f1_score(y_true, y_pred_best, zero_division=0)
+            print(f"Label {c+1}: ACC_0.5={acc_05:.3f} Prec_0.5={prec_05:.3f} Rec_0.5={rec_05:.3f} F1_0.5={f1_05:.3f} | "
+                  f"ACC_best={acc_best:.3f} Prec_best={prec_best:.3f} Rec_best={rec_best:.3f} F1_best={f1_best:.3f} (thr={thr:.2f})")
+        else:
+            print(f"Label {c+1}: ACC_0.5={acc_05:.3f} Prec_0.5={prec_05:.3f} Rec_0.5={rec_05:.3f} F1_0.5={f1_05:.3f}")
 
 if __name__ == "__main__":
     main()

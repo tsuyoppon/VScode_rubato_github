@@ -14,7 +14,7 @@ uploaded_file = st.file_uploader("画像ファイルを選択してください"
 if uploaded_file is not None:
     # アップロード画像の読み込み
     image = Image.open(uploaded_file).convert("RGB")
-    st.image(image, caption="アップロードされた画像", use_column_width=True)
+    st.image(image, caption="アップロードされた画像", use_container_width=True)
     
     # 予測とヒートマップの生成
     with st.spinner("予測中..."):
@@ -38,4 +38,4 @@ if uploaded_file is not None:
         # 重ね合わせ（透明度0.4）
         overlay = cv2.addWeighted(image_np, 0.6, heatmap_color, 0.4, 0)
         st.write("### ヒートマップ")
-        st.image(overlay, caption="ヒートマップが重ねられた画像", use_column_width=True)
+        st.image(overlay, caption="ヒートマップが重ねられた画像", use_container_width=True)
