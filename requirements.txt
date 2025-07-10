@@ -4,3 +4,6 @@ torchvision
 numpy
 opencv-python-headless
 Pillow
+segmentation-models-pytorch
+transformers
+scikit-learn
