@@ -35,6 +35,7 @@ MANIFEST
 # PyTorch model files (large files)
 *.pth
 !unet_resnet34_4class_multilabel.pth
+!two_level_vit_10label_best_0528.pth
 *.pt
 *.pkl
 *.bin
