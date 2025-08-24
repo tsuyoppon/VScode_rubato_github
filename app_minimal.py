@@ -8,9 +8,20 @@ import torch
 from pathlib import Path
 from two_level_vit_predict_for_webap2 import predict_image, TwoLevelViT, device
 from model_downloader import ensure_models_downloaded
+import psutil
+import os
 
 # Initialize app
 st.set_page_config(page_title="Rubato Slide Analyzer", page_icon="🎯", layout="wide")
+
+# メモリ使用量を表示する関数
+def show_memory_usage(label=""):
+    process = psutil.Process(os.getpid())
+    memory_info = process.memory_info()
+    memory_mb = memory_info.rss / 1024 / 1024
+    st.write(f"Memory usage {label}: {memory_mb:.2f} MB")
+
+show_memory_usage("at startup")
 
 # Download models if needed
 if not ensure_models_downloaded():
@@ -20,31 +31,68 @@ if not ensure_models_downloaded():
 # Streamlitのキャッシュ機能を使ってモデルをロード
 @st.cache_resource
 def load_model():
-    model_path = "models/two_level_vit_10label_best_0528.pth"
-    if not Path(model_path).exists():
-        st.error(f"Model file not found: {model_path}")
-        return None
+    try:
+        model_path = "models/two_level_vit_10label_best_0528.pth"
+        st.write(f"Checking model file: {model_path}")
         
-    model = TwoLevelViT(num_labels=10).to(device)
-    model.load_state_dict(torch.load(model_path, map_location=device))
-    model.eval()
-    return model
+        if not Path(model_path).exists():
+            st.error(f"Model file not found: {model_path}")
+            return None
+        
+        # ファイルサイズを表示
+        file_size = Path(model_path).stat().st_size / (1024 * 1024)  # MB
+        st.write(f"Model file size: {file_size:.2f} MB")
+        
+        st.write("Creating model instance...")
+        model = TwoLevelViT(num_labels=10).to(device)
+        
+        st.write("Loading model weights...")
+        # メモリ効率を考慮してweights_onlyオプションを使用（PyTorch 1.13+）
+        try:
+            model.load_state_dict(torch.load(model_path, map_location=device, weights_only=True))
+        except TypeError:
+            # 古いバージョンのPyTorchの場合
+            st.write("Using legacy loading method...")
+            model.load_state_dict(torch.load(model_path, map_location=device))
+        model.eval()
+        
+        st.write("Model loaded successfully!")
+        return model
+        
+    except Exception as e:
+        st.error(f"Error loading model: {str(e)}")
+        import traceback
+        st.error(f"Traceback: {traceback.format_exc()}")
+        return None
 
 # Streamlitのキャッシュ機能を使って閾値をロード
 @st.cache_data
 def load_thresholds():
-    threshold_path = "models/label_thresholds_best_0528.npy"
-    if not Path(threshold_path).exists():
-        st.error(f"Threshold file not found: {threshold_path}")
+    try:
+        threshold_path = "models/label_thresholds_best_0528.npy"
+        st.write(f"Loading thresholds from: {threshold_path}")
+        
+        if not Path(threshold_path).exists():
+            st.error(f"Threshold file not found: {threshold_path}")
+            return None
+        
+        optimal_thresholds = np.load(threshold_path)
+        st.write(f"Thresholds loaded successfully! Shape: {optimal_thresholds.shape}")
+        return optimal_thresholds
+        
+    except Exception as e:
+        st.error(f"Error loading thresholds: {str(e)}")
+        import traceback
+        st.error(f"Traceback: {traceback.format_exc()}")
         return None
-    
-    optimal_thresholds = np.load(threshold_path)
-    return optimal_thresholds
 
 # Load model and thresholds
 with st.spinner("Loading model..."):
+    show_memory_usage("before model loading")
     model = load_model()
+    show_memory_usage("after model loading")
     optimal_thresholds = load_thresholds()
+    show_memory_usage("after threshold loading")
 
 if model is None or optimal_thresholds is None:
     st.error("Failed to load model or thresholds. Please check the files.")
