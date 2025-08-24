@@ -140,7 +140,7 @@ class TwoLevelViT(nn.Module):
             in_channels=3,
             classes=4  # 例: 4クラスマスク
         )
-        self.seg_model.load_state_dict(torch.load('unet_resnet34_4class_multilabel.pth'))
+        self.seg_model.load_state_dict(torch.load('models/unet_resnet34_4class_multilabel.pth'))
         self.seg_model.eval()
         for param in self.seg_model.parameters():
             param.requires_grad = False  # セグモデルは凍結

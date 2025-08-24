@@ -25,7 +25,9 @@ WORKDIR /app
 COPY requirements.txt .
 
 # Install Python dependencies
-RUN pip install --no-cache-dir -r requirements.txt
+# Install Python dependencies  
+RUN pip install --no-cache-dir streamlit numpy opencv-python-headless Pillow segmentation-models-pytorch transformers scikit-learn requests && 
+    pip install --no-cache-dir torch==2.3.1+cpu torchvision==0.18.1+cpu --index-url https://download.pytorch.org/whl/cpu
 
 # Copy application code
 COPY app_minimal.py .
