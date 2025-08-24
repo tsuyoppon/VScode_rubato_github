@@ -1,6 +1,4 @@
-# Dockerfile for t3.small # Install Python dependencies
-RUN pip install --no-cache-dir -r requirements.txt && \
-    pip install --no-cache-dir torch==2.3.1+cpu torchvision==0.18.1+cpu --index-url https://download.pytorch.org/whl/cpumized deployment
+# Dockerfile for t3.small optimized deployment
 FROM python:3.10-slim-bullseye
 
 # Set environment variables
@@ -27,8 +25,7 @@ WORKDIR /app
 COPY requirements.txt .
 
 # Install Python dependencies
-# Install Python dependencies  
-RUN pip install --no-cache-dir streamlit numpy opencv-python-headless Pillow segmentation-models-pytorch transformers scikit-learn requests && 
+RUN pip install --no-cache-dir -r requirements.txt && \
     pip install --no-cache-dir torch==2.3.1+cpu torchvision==0.18.1+cpu --index-url https://download.pytorch.org/whl/cpu
 
 # Copy application code
