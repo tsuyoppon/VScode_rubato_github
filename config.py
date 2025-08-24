@@ -11,7 +11,7 @@ MODEL_FILES = {
 # Alternative: Use direct URLs for model hosting
 # You can replace with S3 URLs, GitHub LFS URLs, or other hosting services
 DIRECT_MODEL_URLS = {
-    "two_level_vit_10label_best_0528.pth": "https://github.com/tsuyoppon/VScode_rubato_github/raw/feature/streamlit-deployment/two_level_vit_10label_best_0528.pth",
-    "label_thresholds_best_0528.npy": "https://github.com/tsuyoppon/VScode_rubato_github/raw/feature/streamlit-deployment/label_thresholds_best_0528.npy",
-    "unet_resnet34_4class_multilabel.pth": "https://github.com/tsuyoppon/VScode_rubato_github/raw/feature/streamlit-deployment/unet_resnet34_4class_multilabel.pth"
+    "two_level_vit_10label_best_0528.pth": "https://github.com/tsuyoppon/VScode_rubato_github/raw/feature/ec2-minimal-deployment/two_level_vit_10label_best_0528.pth",
+    "label_thresholds_best_0528.npy": "https://github.com/tsuyoppon/VScode_rubato_github/raw/feature/ec2-minimal-deployment/label_thresholds_best_0528.npy",
+    "unet_resnet34_4class_multilabel.pth": "https://github.com/tsuyoppon/VScode_rubato_github/raw/feature/ec2-minimal-deployment/unet_resnet34_4class_multilabel.pth"
 }
