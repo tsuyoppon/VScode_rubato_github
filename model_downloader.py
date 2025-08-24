@@ -43,12 +43,14 @@ def download_model_file(url: str, local_path: str) -> bool:
 
 def ensure_models_downloaded() -> bool:
     """Ensure all required model files are downloaded"""
+    from config import DIRECT_MODEL_URLS, MODEL_LOCAL_PATHS
+    
     all_downloaded = True
     
-    for filename, local_path in DIRECT_MODEL_URLS.items():
-        if filename in DIRECT_MODEL_URLS:
-            url = DIRECT_MODEL_URLS[filename]
-            if not download_model_file(url, local_path):
-                all_downloaded = False
+    for filename in DIRECT_MODEL_URLS.keys():
+        url = DIRECT_MODEL_URLS[filename]
+        local_path = MODEL_LOCAL_PATHS[filename]
+        if not download_model_file(url, local_path):
+            all_downloaded = False
     
     return all_downloaded
