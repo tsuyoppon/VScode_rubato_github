@@ -55,6 +55,17 @@ chmod +x deploy.sh
 ```
 
 ### 3. 手動デプロイ（代替）
+
+#### プライベートリポジトリの場合
+```bash
+# Personal Access Tokenを使用
+git clone https://<YOUR_GITHUB_TOKEN>@github.com/tsuyoppon/VScode_rubato_github.git
+
+# または SSH鍵認証（事前にGitHubにSSH鍵を登録）
+git clone git@github.com:tsuyoppon/VScode_rubato_github.git
+```
+
+#### 通常のデプロイ手順
 ```bash
 # Docker installation
 sudo apt-get update
