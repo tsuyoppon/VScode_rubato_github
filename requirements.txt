@@ -1,9 +1,10 @@
 streamlit
-torch
-torchvision
+torch==2.3.1+cpu
+torchvision==0.18.1+cpu
 numpy
 opencv-python-headless
 Pillow
 segmentation-models-pytorch
 transformers
 scikit-learn
+requests
