@@ -1,4 +1,6 @@
-# Dockerfile for t3.small optimized deployment
+# Dockerfile for t3.small # Install Python dependencies
+RUN pip install --no-cache-dir -r requirements.txt && \
+    pip install --no-cache-dir torch==2.3.1+cpu torchvision==0.18.1+cpu --index-url https://download.pytorch.org/whl/cpumized deployment
 FROM python:3.10-slim-bullseye
 
 # Set environment variables
