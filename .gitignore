@@ -97,6 +97,13 @@ images/
 *.log
 logs/
 
+# Streamlit specific
+.streamlit/credentials.yaml
+.streamlit/secrets.toml
+
+# Application specific
+access_log.sqlite3
+
 # Temporary files
 *.tmp
 *.temp
