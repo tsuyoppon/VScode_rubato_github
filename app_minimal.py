@@ -1,4 +1,4 @@
-# app_minimal.py - Optimized for t3.small EC2 deployment
+# app_minimal.py - Optimized for t3.medium EC2 deployment (4GB RAM)
 
 import streamlit as st
 from PIL import Image

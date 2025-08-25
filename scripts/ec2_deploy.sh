@@ -1,10 +1,10 @@
 #!/bin/bash
 # EC2 Deployment Script for Rubato Streamlit App
-# Optimized for t3.small instances
+# Optimized for t3.medium instances (4GB RAM, 2 vCPU)
 
 set -e  # Exit on any error
 
-echo "🚀 Starting EC2 deployment for Rubato Streamlit App..."
+echo "🚀 Starting EC2 deployment for Rubato Streamlit App (t3.medium optimized)..."
 
 # Colors for output
 RED='\033[0;31m'

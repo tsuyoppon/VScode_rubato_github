@@ -1,21 +1,26 @@
 # Rubato EC2 Minimal Deployment
 
-最小限の機能でt3.smallインスタンスでの動作を最適化したStreamlitアプリのデプロイメント設定です。
+最小限の機能でt3.mediumインスタンスでの動作を最適化したStreamlitアプリのデプロイメント設定です。
 
 ## 特徴
 
 - **軽量化**: CPU版PyTorchでCUDA依存を削除
 - **モデル外出し**: 起動時にGitHub LFSからダウンロード
-- **メモリ最適化**: t3.small（2GB RAM）での動作を考慮
+- **メモリ最適化**: t3.medium（4GB RAM）での安定動作を考慮
 - **シンプル**: 認証機能等の追加機能は除外
+
+## 推奨インスタンス
+
+- **t3.medium**: 4GB RAM, 2 vCPU（推奨）
+- **t3.small**: 2GB RAM, 2 vCPU（最小構成、メモリ制限あり）
 
 ## 必要なファイル
 
-- `app_minimal.py`: 最適化されたStreamlitアプリ
+- `app_minimal.py`: 最適化されたStreamlitアプリ（t3.medium向け）
 - `Dockerfile`: 軽量化されたコンテナ設定
 - `model_downloader.py`: モデルファイルの自動ダウンロード
 - `config.py`: モデルURLの設定
-- `deploy.sh`: EC2自動デプロイスクリプト
+- `scripts/ec2_deploy.sh`: EC2自動デプロイスクリプト
 
 ## モデルファイル
 

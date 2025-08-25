@@ -1,11 +1,14 @@
-# Dockerfile for t3.small optimized deployment
+# Dockerfile for t3.medium optimized deployment (4GB RAM, 2 vCPU)
 FROM python:3.10-slim-bullseye
 
-# Set environment variables
+# Set environment variables for t3.medium optimization
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
-    PIP_DISABLE_PIP_VERSION_CHECK=1
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    TORCH_NUM_THREADS=2 \
+    OMP_NUM_THREADS=2 \
+    MKL_NUM_THREADS=2
 
 # Install system dependencies for OpenCV
 RUN apt-get update && apt-get install -y --no-install-recommends \
