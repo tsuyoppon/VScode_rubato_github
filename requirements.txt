@@ -6,3 +6,4 @@ segmentation-models-pytorch
 transformers
 scikit-learn
 requests
+psutil
