@@ -109,3 +109,9 @@ access_log.sqlite3
 *.temp
 temp/
 tmp/
+
+# Prevent accidental Lightsail files
+Dockerfile.lightsail
+LIGHTSAIL_DEPLOYMENT.md
+*lightsail_deploy.sh
+*requirements_fixed.txt
