@@ -4,17 +4,19 @@ import streamlit as st
 from pathlib import Path
 from config import DIRECT_MODEL_URLS
 
-def download_model_file(url: str, local_path: str) -> bool:
+def download_model_file(url: str, local_path: str, silent: bool = False) -> bool:
     """Download model file from URL to local path"""
     try:
         local_path = Path(local_path)
         local_path.parent.mkdir(parents=True, exist_ok=True)
         
         if local_path.exists():
-            st.info(f"Model file {local_path.name} already exists, skipping download.")
+            if not silent:
+                st.info(f"Model file {local_path.name} already exists, skipping download.")
             return True
             
-        st.info(f"Downloading {local_path.name}...")
+        if not silent:
+            st.info(f"Downloading {local_path.name}...")
         
         response = requests.get(url, stream=True)
         response.raise_for_status()
@@ -30,18 +32,20 @@ def download_model_file(url: str, local_path: str) -> bool:
                     if chunk:
                         f.write(chunk)
                         downloaded += len(chunk)
-                        if total_size > 0:
+                        if total_size > 0 and not silent:
                             progress = downloaded / total_size
                             st.progress(progress, text=f"Downloading {local_path.name}: {progress:.1%}")
         
-        st.success(f"Downloaded {local_path.name}")
+        if not silent:
+            st.success(f"Downloaded {local_path.name}")
         return True
         
     except Exception as e:
-        st.error(f"Failed to download {local_path}: {str(e)}")
+        if not silent:
+            st.error(f"Failed to download {local_path}: {str(e)}")
         return False
 
-def ensure_models_downloaded() -> bool:
+def ensure_models_downloaded(silent: bool = False) -> bool:
     """Ensure all required model files are downloaded"""
     from config import DIRECT_MODEL_URLS, MODEL_LOCAL_PATHS
     
@@ -50,7 +54,7 @@ def ensure_models_downloaded() -> bool:
     for filename in DIRECT_MODEL_URLS.keys():
         url = DIRECT_MODEL_URLS[filename]
         local_path = MODEL_LOCAL_PATHS[filename]
-        if not download_model_file(url, local_path):
+        if not download_model_file(url, local_path, silent=silent):
             all_downloaded = False
     
     return all_downloaded
