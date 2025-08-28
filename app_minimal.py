@@ -167,8 +167,4 @@ if uploaded_file is not None:
         overlayed = cv2.addWeighted(img_resized, 1-alpha, heatmap_color, alpha, 0)
         
         st.write("### 注目領域（ヒートマップ）")
-        col1, col2 = st.columns(2)
-        with col1:
-            st.image(heatmap_color, caption="ヒートマップ", use_container_width=True)
-        with col2:
-            st.image(overlayed, caption="元画像 + ヒートマップ", use_container_width=True)
+        st.image(overlayed, caption="元画像 + ヒートマップ", use_container_width=True)
