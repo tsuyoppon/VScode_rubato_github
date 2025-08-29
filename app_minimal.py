@@ -153,6 +153,35 @@ if uploaded_file is not None:
     else:
         st.write("予測された項目はありません。")
     
+    # 評価点の計算と表示
+    st.write("### 評価結果")
+    
+    # 評価点計算: 要修正項目数÷10×100
+    num_issues = len(predictions) if predictions else 0
+    evaluation_score = (num_issues / 10) * 100
+    
+    # 評価点の表示
+    st.write(f"**修正必要度: {evaluation_score:.1f}点**")
+    
+    # アイコン表示（20点ごとに1個、横並び）
+    num_icons = int(evaluation_score // 20)
+    if num_icons > 0:
+        # アイコンを横並びで表示
+        icon_text = "⚠️ " * num_icons
+        st.write(f"修正必要度レベル: {icon_text}")
+    else:
+        st.write("修正必要度レベル: ✅ 良好")
+    
+    # 評価点の説明
+    if evaluation_score == 0:
+        st.success("🎉 修正が必要な項目は見つかりませんでした！")
+    elif evaluation_score <= 40:
+        st.info("💡 軽微な修正が推奨されます。")
+    elif evaluation_score <= 80:
+        st.warning("⚡ 中程度の修正が必要です。")
+    else:
+        st.error("🚨 重要な修正が必要です。")
+    
     # ヒートマップと元画像の重ね合わせ
     if heatmap is not None:
         # ヒートマップをカラーマップ（JET）に変換
