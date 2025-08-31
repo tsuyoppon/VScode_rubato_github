@@ -146,14 +146,7 @@ if uploaded_file is not None:
     with st.spinner("予測中..."):
         predictions, heatmap = predict_image(image, model, optimal_thresholds)
     
-    st.write("### 要修正と思われる項目")
-    if predictions:
-        for item in predictions:
-            st.write(f"- {item}")
-    else:
-        st.write("予測された項目はありません。")
-    
-    # 評価点の計算と表示
+    # 評価点の計算と表示（画像の後、要修正項目の前に移動）
     st.write("### 評価結果")
     
     # 評価点計算: 要修正項目数÷10×100
@@ -163,14 +156,14 @@ if uploaded_file is not None:
     # 評価点の表示
     st.write(f"**修正必要度: {evaluation_score:.1f}点**")
     
-    # アイコン表示（20点ごとに1個、横並び）
+    # アイコン表示（20点ごとに1個、横並び、サイズを大きくする）
     num_icons = int(evaluation_score // 20)
     if num_icons > 0:
-        # アイコンを横並びで表示
+        # アイコンを大きく表示（markdownのheaderサイズを利用）
         icon_text = "⚠️ " * num_icons
-        st.write(f"修正必要度レベル: {icon_text}")
+        st.markdown(f"### 修正必要度レベル: {icon_text}")
     else:
-        st.write("修正必要度レベル: ✅ 良好")
+        st.markdown("### 修正必要度レベル: ✅ 良好")
     
     # 評価点の説明
     if evaluation_score == 0:
@@ -181,6 +174,13 @@ if uploaded_file is not None:
         st.warning("⚡ 中程度の修正が必要です。")
     else:
         st.error("🚨 重要な修正が必要です。")
+    
+    st.write("### 要修正と思われる項目")
+    if predictions:
+        for item in predictions:
+            st.write(f"- {item}")
+    else:
+        st.write("予測された項目はありません。")
     
     # ヒートマップと元画像の重ね合わせ
     if heatmap is not None:
