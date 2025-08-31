@@ -156,14 +156,16 @@ if uploaded_file is not None:
     # 評価点の表示
     st.write(f"**修正必要度: {evaluation_score:.1f}点**")
     
-    # アイコン表示（20点ごとに1個、横並び、サイズを大きくする）
+    # アイコン表示（20点ごとに1個、横並び）
     num_icons = int(evaluation_score // 20)
     if num_icons > 0:
-        # アイコンを大きく表示（markdownのheaderサイズを利用）
+        # "修正必要度レベル:"とアイコンを改行して表示
+        st.write("**修正必要度レベル:**")
         icon_text = "⚠️ " * num_icons
-        st.markdown(f"### 修正必要度レベル: {icon_text}")
+        st.markdown(f"### {icon_text}")
     else:
-        st.markdown("### 修正必要度レベル: ✅ 良好")
+        st.write("**修正必要度レベル:**")
+        st.markdown("### ✅ 良好")
     
     # 評価点の説明
     if evaluation_score == 0:
