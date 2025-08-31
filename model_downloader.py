@@ -1,6 +1,7 @@
 import os
 import requests
 import streamlit as st
+import shutil
 from pathlib import Path
 from config import DIRECT_MODEL_URLS
 
@@ -54,6 +55,34 @@ def ensure_models_downloaded(silent: bool = False) -> bool:
     for filename in DIRECT_MODEL_URLS.keys():
         url = DIRECT_MODEL_URLS[filename]
         local_path = MODEL_LOCAL_PATHS[filename]
+        
+        # Check if file already exists locally in models/ directory
+        if Path(local_path).exists():
+            if not silent:
+                st.info(f"Model file {filename} already exists in models/, skipping download.")
+            continue
+            
+        # Check if file exists in root directory (fallback for local development)
+        root_path = Path(filename)
+        if root_path.exists():
+            if not silent:
+                st.info(f"Model file {filename} found in root directory, copying to models/...")
+            try:
+                # Create models directory if it doesn't exist
+                Path(local_path).parent.mkdir(parents=True, exist_ok=True)
+                # Copy from root to models directory
+                import shutil
+                shutil.copy2(root_path, local_path)
+                if not silent:
+                    st.success(f"Copied {filename} to models/ directory")
+                continue
+            except Exception as e:
+                if not silent:
+                    st.error(f"Failed to copy {filename}: {str(e)}")
+                all_downloaded = False
+                continue
+        
+        # Try to download from URL
         if not download_model_file(url, local_path, silent=silent):
             all_downloaded = False
     
