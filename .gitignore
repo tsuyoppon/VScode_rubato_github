@@ -36,6 +36,9 @@ MANIFEST
 *.pth
 !unet_resnet34_4class_multilabel.pth
 !two_level_vit_10label_best_0528.pth
+# Ignore model files in models/ directory (copied during runtime)
+models/*.pth
+models/*.pt
 *.pt
 *.pkl
 *.bin
