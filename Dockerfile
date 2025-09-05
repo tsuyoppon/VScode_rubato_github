@@ -37,9 +37,11 @@ COPY two_level_vit_predict_for_webap2.py .
 COPY Twolevel_Vit_trialnew.py .
 COPY model_downloader.py .
 COPY config.py .
+COPY admin_logger.py .
+COPY admin_dashboard.py .
 
-# Create directory for models
-RUN mkdir -p /app/models
+# Create directories for models and logs
+RUN mkdir -p /app/models /app/logs
 
 # Expose Streamlit port
 EXPOSE 8501

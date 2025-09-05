@@ -10,6 +10,7 @@ from two_level_vit_predict_for_webap2 import predict_image, TwoLevelViT, device
 from model_downloader import ensure_models_downloaded
 import psutil
 import os
+from admin_logger import log_model_loading, log_memory_usage, log_error, log_user_action
 
 # Initialize app
 st.set_page_config(page_title="Rubato Slide Analyzer", page_icon="🎯", layout="wide")
@@ -18,23 +19,32 @@ st.set_page_config(page_title="Rubato Slide Analyzer", page_icon="🎯", layout=
 if 'app_initialized' not in st.session_state:
     st.session_state.app_initialized = False
 
-# メモリ使用量を表示する関数（初回のみ）
-def show_memory_usage(label=""):
-    if not st.session_state.app_initialized:
-        process = psutil.Process(os.getpid())
-        memory_info = process.memory_info()
-        memory_mb = memory_info.rss / 1024 / 1024
-        st.write(f"Memory usage {label}: {memory_mb:.2f} MB")
+# 管理者ダッシュボードへのアクセス（URLパラメータによる）
+query_params = st.query_params
+if "admin" in query_params:
+    from admin_dashboard import show_admin_dashboard
+    show_admin_dashboard()
+    st.stop()
 
-# 初回起動時のみメモリ使用量を表示
-show_memory_usage("at startup")
+# メモリ使用量を記録する関数（サイレントモード）
+def record_memory_usage(label=""):
+    process = psutil.Process(os.getpid())
+    memory_info = process.memory_info()
+    memory_mb = memory_info.rss / 1024 / 1024
+    log_memory_usage(label, memory_mb)
 
-# Download models if needed (show messages only on first load)
+# 初回起動時のメモリ使用量を記録
+record_memory_usage("at startup")
+
+# Download models if needed (完全サイレントモード)
+log_model_loading("Starting model download check...")
 if not st.session_state.app_initialized:
-    with st.spinner("Checking and downloading models..."):
-        if not ensure_models_downloaded(silent=False):
-            st.error("Failed to download required models. Please try again.")
+    with st.spinner("システムを初期化中..."):
+        if not ensure_models_downloaded(silent=True):
+            log_error("Failed to download required models")
+            st.error("システムの初期化に失敗しました。管理者に連絡してください。")
             st.stop()
+        log_model_loading("Model download check completed")
 else:
     # Silent model check for subsequent loads
     ensure_models_downloaded(silent=True)
@@ -45,44 +55,42 @@ def load_model():
     try:
         model_path = "models/two_level_vit_10label_best_0528.pth"
         
-        # 初回のみログメッセージを表示
-        if not st.session_state.app_initialized:
-            st.write(f"Checking model file: {model_path}")
+        # 管理者ログに記録（画面には表示しない）
+        log_model_loading(f"Checking model file: {model_path}")
         
         if not Path(model_path).exists():
-            st.error(f"Model file not found: {model_path}")
+            log_error(f"Model file not found: {model_path}")
+            st.error("モデルファイルが見つかりません。管理者に連絡してください。")
             return None
         
-        # 初回のみファイルサイズを表示
-        if not st.session_state.app_initialized:
-            file_size = Path(model_path).stat().st_size / (1024 * 1024)  # MB
-            st.write(f"Model file size: {file_size:.2f} MB")
-            st.write("Creating model instance...")
+        # ファイルサイズを記録
+        file_size = Path(model_path).stat().st_size / (1024 * 1024)  # MB
+        log_model_loading(f"Model file size: {file_size:.2f} MB")
+        log_model_loading("Creating model instance...")
         
         model = TwoLevelViT(num_labels=10).to(device)
         
-        if not st.session_state.app_initialized:
-            st.write("Loading model weights...")
+        log_model_loading("Loading model weights...")
         
         # メモリ効率を考慮してweights_onlyオプションを使用（PyTorch 1.13+）
         try:
             model.load_state_dict(torch.load(model_path, map_location=device, weights_only=True))
         except TypeError:
             # 古いバージョンのPyTorchの場合
-            if not st.session_state.app_initialized:
-                st.write("Using legacy loading method...")
+            log_model_loading("Using legacy loading method...")
             model.load_state_dict(torch.load(model_path, map_location=device))
         model.eval()
         
-        if not st.session_state.app_initialized:
-            st.write("Model loaded successfully!")
+        log_model_loading("Model loaded successfully!")
         
         return model
         
     except Exception as e:
-        st.error(f"Error loading model: {str(e)}")
+        error_msg = f"Error loading model: {str(e)}"
+        log_error(error_msg)
         import traceback
-        st.error(f"Traceback: {traceback.format_exc()}")
+        log_error(f"Traceback: {traceback.format_exc()}")
+        st.error("モデルの読み込みに失敗しました。管理者に連絡してください。")
         return None
 
 # Streamlitのキャッシュ機能を使って閾値をロード
@@ -91,45 +99,48 @@ def load_thresholds():
     try:
         threshold_path = "models/label_thresholds_best_0528.npy"
         
-        # 初回のみログメッセージを表示
-        if not st.session_state.app_initialized:
-            st.write(f"Loading thresholds from: {threshold_path}")
+        # 管理者ログに記録（画面には表示しない）
+        log_model_loading(f"Loading thresholds from: {threshold_path}")
         
         if not Path(threshold_path).exists():
-            st.error(f"Threshold file not found: {threshold_path}")
+            log_error(f"Threshold file not found: {threshold_path}")
+            st.error("閾値ファイルが見つかりません。管理者に連絡してください。")
             return None
         
         optimal_thresholds = np.load(threshold_path)
         
-        if not st.session_state.app_initialized:
-            st.write(f"Thresholds loaded successfully! Shape: {optimal_thresholds.shape}")
+        log_model_loading(f"Thresholds loaded successfully! Shape: {optimal_thresholds.shape}")
         
         return optimal_thresholds
         
     except Exception as e:
-        st.error(f"Error loading thresholds: {str(e)}")
+        error_msg = f"Error loading thresholds: {str(e)}"
+        log_error(error_msg)
         import traceback
-        st.error(f"Traceback: {traceback.format_exc()}")
+        log_error(f"Traceback: {traceback.format_exc()}")
+        st.error("閾値の読み込みに失敗しました。管理者に連絡してください。")
         return None
 
 # Load model and thresholds
 if not st.session_state.app_initialized:
-    with st.spinner("Loading model and thresholds..."):
-        show_memory_usage("before model loading")
+    with st.spinner("システムを初期化中..."):
+        record_memory_usage("before model loading")
         model = load_model()
-        show_memory_usage("after model loading")
+        record_memory_usage("after model loading")
         optimal_thresholds = load_thresholds()
-        show_memory_usage("after threshold loading")
+        record_memory_usage("after threshold loading")
         
         # Mark app as initialized after first load
         st.session_state.app_initialized = True
+        log_model_loading("App initialization completed")
 else:
     # Silent loading for subsequent requests
     model = load_model()
     optimal_thresholds = load_thresholds()
 
 if model is None or optimal_thresholds is None:
-    st.error("Failed to load model or thresholds. Please check the files.")
+    log_error("Failed to load model or thresholds - stopping application")
+    st.error("システムの初期化に失敗しました。管理者に連絡してください。")
     st.stop()
 
 st.title("プレトレ Rubato_ver（仮）")
@@ -138,13 +149,18 @@ st.write("画像をアップロードして、モデルの予測結果とヒー�
 uploaded_file = st.file_uploader("画像ファイルを選択してください", type=["png", "jpg", "jpeg"])
 
 if uploaded_file is not None:
+    # ユーザーアクションをログに記録
+    log_user_action("image_upload", f"filename: {uploaded_file.name}, size: {uploaded_file.size} bytes")
+    
     # アップロード画像の読み込み
     image = Image.open(uploaded_file).convert("RGB")
     st.image(image, caption="アップロードされた画像", use_container_width=True)
     
     # 予測とヒートマップの生成
     with st.spinner("予測中..."):
+        log_user_action("prediction_start", f"image_size: {image.size}")
         predictions, heatmap = predict_image(image, model, optimal_thresholds)
+        log_user_action("prediction_complete", f"predictions_count: {len(predictions) if predictions else 0}")
     
     # 評価点の計算と表示（画像の後、要修正項目の前に移動）
     st.write("### 評価結果")
@@ -199,3 +215,7 @@ if uploaded_file is not None:
         
         st.write("### 注目領域（ヒートマップ）")
         st.image(overlayed, caption="元画像 + ヒートマップ", use_container_width=True)
+
+# 管理者向けの注記（小さく表示）
+st.markdown("---")
+st.caption("💡 管理者の方: URLに ?admin=true を追加すると管理者ダッシュボードにアクセスできます")
