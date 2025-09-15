@@ -41,7 +41,7 @@ def load_thresholds():
 optimal_thresholds = load_thresholds()
 
 
-st.title("プレトレ Rubato_ver（仮）")
+st.title("Rubato Slide Intelligence")
 st.write("画像をアップロードして、モデルの予測結果とヒートマップを表示します。")
 
 uploaded_file = st.file_uploader("画像ファイルを選択してください", type=["png", "jpg", "jpeg"])

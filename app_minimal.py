@@ -143,7 +143,7 @@ if model is None or optimal_thresholds is None:
     st.error("システムの初期化に失敗しました。管理者に連絡してください。")
     st.stop()
 
-st.title("プレトレ Rubato_ver（仮）")
+st.title("Rubato Slide Intelligence")
 st.write("画像をアップロードして、モデルの予測結果とヒートマップを表示します。")
 
 uploaded_file = st.file_uploader("画像ファイルを選択してください", type=["png", "jpg", "jpeg"])
