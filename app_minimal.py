@@ -200,6 +200,30 @@ if uploaded_file is not None:
     else:
         st.write("予測された項目はありません。")
     
+    # 各修正項目の解説リンクボタンを追加
+    st.markdown("")  # 少し間隔を空ける
+    improvement_guide_html = """
+    <a href="https://www.rubato.co/rbtv2/files/251004_improvement_points.pdf" target="_blank" style="
+        color: white; 
+        background-color: #1f77b4;
+        text-decoration: none; 
+        font-weight: bold;
+        border: none;
+        padding: 10px 20px;
+        border-radius: 6px;
+        display: inline-block;
+        margin: 8px 0;
+        font-size: 14px;
+        cursor: pointer;
+        transition: background-color 0.3s;
+    " onmouseover="this.style.backgroundColor='#0d5a8a';" 
+       onmouseout="this.style.backgroundColor='#1f77b4';">
+        📚 各修正項目の解説についてはこちら
+    </a>
+    """
+    st.markdown(improvement_guide_html, unsafe_allow_html=True)
+    st.caption("※クリックすると、別タブで詳細な解説PDFが開きます")
+    
     # ヒートマップと元画像の重ね合わせ
     if heatmap is not None:
         # ヒートマップをカラーマップ（JET）に変換
