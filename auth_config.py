@@ -114,16 +114,8 @@ def render_login_page() -> Tuple[Optional[str], Optional[bool], Optional[str]]:
         </style>
     """, unsafe_allow_html=True)
     
-    # ヘッダー
-    st.markdown("""
-        <div class="login-header">
-            <div class="login-title">🎯 Rubato Slide Analyzer</div>
-            <div class="login-subtitle">ログインしてください</div>
-        </div>
-    """, unsafe_allow_html=True)
-    
-    # ログインフォーム
-    name, authentication_status, username = authenticator.login('ログイン', 'main')
+    # ログインフォーム（タイトルを直接指定）
+    name, authentication_status, username = authenticator.login('🎯 Rubato Slide Intelligence', 'main')
     
     # 認証状態の処理
     if authentication_status is False:
@@ -155,12 +147,8 @@ def render_logout_button():
         # サイドバーにユーザー情報を表示
         with st.sidebar:
             st.markdown("---")
-            role = st.session_state.get('role', 'user')
-            role_display = ROLES.get(role, {}).get('display_name', '一般ユーザー')
-            
-            st.info(f"👤 **{st.session_state.get('name', 'ユーザー')}**\n\n"
-                   f"ユーザー名: {username}\n\n"
-                   f"役割: {role_display} ({role})")
+            # ユーザー名のみをシンプルに表示
+            st.info(f"👤 **{st.session_state.get('name', 'ユーザー')}**")
             
             # streamlit-authenticator 0.3.3のlogout()メソッドを使用
             # このメソッドがボタンとCookie削除を自動で処理します
@@ -186,7 +174,13 @@ def require_authentication():
     # Cookieからの自動ログインを試みる
     # v0.3.3ではlogin()がタプルを返す: (name, authentication_status, username)
     try:
-        name, authentication_status, username = authenticator.login(location='main', key='login_form')
+        # フォームのタイトルをカスタマイズ
+        fields = {'Form name': 'Rubato Slide Intelligence'}
+        name, authentication_status, username = authenticator.login(
+            location='main', 
+            fields=fields,
+            key='login_form'
+        )
     except Exception as e:
         log_error(f"ログイン処理エラー: {str(e)}")
         st.error(f"ログイン処理中にエラーが発生しました: {str(e)}")
