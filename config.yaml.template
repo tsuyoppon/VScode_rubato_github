@@ -1,0 +1,55 @@
+# 認証設定ファイル (config.yaml)
+# このファイルはGit管理外です(.gitignoreに追加済み)
+# 
+# 使用方法:
+# 1. generate_password.py でパスワードハッシュを生成
+# 2. 以下のテンプレートの <HASHED_PASSWORD> を置き換え
+# 3. このファイルをEC2の /home/ubuntu/config/config.yaml に配置
+#
+# ユーザー追加方法:
+# 1. generate_password.py で新しいパスワードハッシュを生成
+# 2. credentials.usernames に新しいユーザーを追加
+# 3. docker restart rubato-app で反映
+
+credentials:
+  usernames:
+    # 管理者アカウント
+    admin:
+      email: admin@rubato.co
+      name: "管理者"
+      # パスワード: admin123 (本番環境では必ず変更してください)
+      password: "$2b$12$EixZaYVK1fsbw1ZfbX3OXePaWxn96p36WQam1gW5qmxpqeMVvK4pG"
+      role: "admin"
+    
+    # テストユーザー1
+    testuser1:
+      email: testuser1@rubato.co
+      name: "テストユーザー1"
+      # パスワード: test123 (本番環境では必ず変更してください)
+      password: "$2b$12$KIXwJ5YQjX7bqFQXvZK6/.vR5JzKqP1qH0gzGvF8tGJmFZKqX7Hxu"
+      role: "user"
+    
+    # テストユーザー2
+    testuser2:
+      email: testuser2@rubato.co
+      name: "テストユーザー2"
+      # パスワード: test456 (本番環境では必ず変更してください)
+      password: "$2b$12$YzJ5QzX7bqFQXvZK6/.vR5JzKqP1qH0gzGvF8tGJmFZKqX7HxuKIX"
+      role: "user"
+
+# Cookie設定
+cookie:
+  # Cookie名 (変更不要)
+  name: "rubato_auth_cookie"
+  
+  # 秘密鍵 (本番環境では必ずランダムな文字列に変更してください)
+  # 生成方法: python -c "import secrets; print(secrets.token_urlsafe(32))"
+  key: "rubato_secret_key_2025_change_this_in_production"
+  
+  # Cookie有効期限(日数)
+  expiry_days: 30
+
+# 注意事項:
+# - このファイルは機密情報を含むため、Gitにコミットしないでください
+# - 本番環境では必ずパスワードとsecret keyを変更してください
+# - ユーザーを追加したら docker restart rubato-app で反映してください

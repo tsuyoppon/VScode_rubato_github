@@ -11,20 +11,29 @@ from model_downloader import ensure_models_downloaded
 import psutil
 import os
 from admin_logger import log_model_loading, log_memory_usage, log_error, log_user_action
+from auth_config import require_authentication, render_logout_button, is_admin
 
 # Initialize app
 st.set_page_config(page_title="Rubato Slide Analyzer", page_icon="🎯", layout="wide")
+
+# 認証チェック - これ以降のコードは認証済みユーザーのみ実行される
+require_authentication()
 
 # Initialize session state for first-time loading
 if 'app_initialized' not in st.session_state:
     st.session_state.app_initialized = False
 
 # 管理者ダッシュボードへのアクセス（URLパラメータによる）
+# 注意: 認証済みで、かつ管理者権限がある場合のみアクセス可能
 query_params = st.query_params
 if "admin" in query_params:
-    from admin_dashboard import show_admin_dashboard
-    show_admin_dashboard()
-    st.stop()
+    if is_admin():
+        from admin_dashboard import show_admin_dashboard
+        show_admin_dashboard()
+        st.stop()
+    else:
+        st.error("❌ 管理者権限がありません")
+        st.stop()
 
 # メモリ使用量を記録する関数（サイレントモード）
 def record_memory_usage(label=""):
@@ -142,6 +151,19 @@ if model is None or optimal_thresholds is None:
     log_error("Failed to load model or thresholds - stopping application")
     st.error("システムの初期化に失敗しました。管理者に連絡してください。")
     st.stop()
+
+# サイドバーにログアウトボタンと管理者メニューを表示
+with st.sidebar:
+    # ログアウトボタン（認証モジュールから）
+    render_logout_button()
+    
+    # 管理者の場合は管理ダッシュボードへのリンクを表示
+    if is_admin():
+        st.markdown("---")
+        st.subheader("🔧 管理者メニュー")
+        if st.button("📊 管理ダッシュボード", use_container_width=True):
+            st.query_params["admin"] = "true"
+            st.rerun()
 
 st.title("Rubato Slide Intelligence")
 st.write("画像をアップロードして、モデルの予測結果とヒートマップを表示します。")

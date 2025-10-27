@@ -104,6 +104,9 @@ logs/
 .streamlit/credentials.yaml
 .streamlit/secrets.toml
 
+# Authentication
+config.yaml
+
 # Application specific
 access_log.sqlite3
 

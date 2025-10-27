@@ -9,29 +9,17 @@ def show_admin_dashboard():
     """管理者向けダッシュボードを表示"""
     st.title("🔧 管理者ダッシュボード")
     
-    # パスワード認証（簡易版）
-    if 'admin_authenticated' not in st.session_state:
-        st.session_state.admin_authenticated = False
+    # 注意: 認証は app_minimal.py で実施済み
+    # ここに到達した時点で管理者権限が確認されている
     
-    if not st.session_state.admin_authenticated:
-        st.warning("管理者認証が必要です")
-        password = st.text_input("パスワード", type="password")
-        if st.button("ログイン"):
-            # 簡易パスワード（実際の運用では環境変数等で管理）
-            if password == "rubato_admin_2025":
-                st.session_state.admin_authenticated = True
-                st.success("認証成功！ページを再読み込みしてください。")
-                st.rerun()
-            else:
-                st.error("パスワードが間違っています")
-        return
+    # 認証済みユーザー情報を表示
+    if 'name' in st.session_state:
+        st.success(f"👤 {st.session_state['name']} として認証済み")
     
-    # 認証済みの場合の管理画面
-    st.success("管理者として認証済み")
-    
-    # ログアウトボタン
-    if st.button("ログアウト"):
-        st.session_state.admin_authenticated = False
+    # メインメニューに戻るボタン
+    if st.button("← メインメニューに戻る"):
+        # URLパラメータをクリア
+        st.query_params.clear()
         st.rerun()
     
     st.markdown("---")

@@ -56,6 +56,20 @@ def log_user_action(action, details=""):
     """ユーザーアクションのログを記録"""
     admin_logger.info(f"USER_ACTION: {action} - {details}")
 
+def log_authentication(event_type, username, success=True, ip_address=None):
+    """
+    認証関連のログを記録
+    
+    Args:
+        event_type: イベントタイプ ("login", "logout", "login_failed")
+        username: ユーザー名
+        success: 成功/失敗 (True/False)
+        ip_address: IPアドレス (オプション)
+    """
+    status = "SUCCESS" if success else "FAILED"
+    ip_info = f" from {ip_address}" if ip_address else ""
+    admin_logger.info(f"AUTH_{event_type.upper()}: User '{username}' {status}{ip_info}")
+
 def get_log_file_path():
     """ログファイルのパスを取得"""
     return str(LOG_FILE)
