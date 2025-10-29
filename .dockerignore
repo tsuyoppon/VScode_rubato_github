@@ -1,0 +1,32 @@
+# Docker ignore for optimized build
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+pip-log.txt
+pip-delete-this-directory.txt
+.git
+.gitignore
+.DS_Store
+.vscode/
+*.egg-info/
+dist/
+build/
+
+# Exclude original app and unused models
+app2.py
+two_level_vit_10label.pth
+label_thresholds.npy
+
+# Exclude training files
+Seg_model_learning_new.py
+train.txt
+val.txt
+test.txt
+logs/
+
+# Keep only necessary files for minimal deployment

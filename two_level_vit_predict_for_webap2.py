@@ -9,18 +9,7 @@ from Twolevel_Vit_trialnew import TwoLevelViT
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-# モデルのロード（num_labels=10）
-model = TwoLevelViT(num_labels=10).to(device)
-model.load_state_dict(torch.load("two_level_vit_10label_best_0528.pth", map_location=device))
-model.eval()
-
-# 最適閾値の読み込み
-try:
-    optimal_thresholds = np.load("label_thresholds_best_0528.npy")
-    print(f"最適閾値を読み込みました: {optimal_thresholds}")
-except FileNotFoundError:
-    print("最適閾値ファイルが見つかりません。デフォルト閾値0.5を使用します。")
-    optimal_thresholds = np.full(10, 0.5)
+# モデルのロード処理はapp2.pyに移動
 
 # 学習時と同様の前処理
 transform = transforms.Compose([
@@ -66,7 +55,7 @@ def compute_attention_rollout(attentions, discard_ratio=0.0):
             result = torch.bmm(attn_aug, result)
     return result
 
-def predict_image(img: Image.Image):
+def predict_image(img: Image.Image, model, optimal_thresholds):
     """
     入力画像（PIL形式）を受け取り、モデルの通常の予測結果と、
     Attention Rolloutに基づくヒートマップ（注目領域）を返す関数。

@@ -34,6 +34,11 @@ MANIFEST
 
 # PyTorch model files (large files)
 *.pth
+!unet_resnet34_4class_multilabel.pth
+!two_level_vit_10label_best_0528.pth
+# Ignore model files in models/ directory (copied during runtime)
+models/*.pth
+models/*.pt
 *.pt
 *.pkl
 *.bin
@@ -95,8 +100,24 @@ images/
 *.log
 logs/
 
+# Streamlit specific
+.streamlit/credentials.yaml
+.streamlit/secrets.toml
+
+# Authentication
+config.yaml
+
+# Application specific
+access_log.sqlite3
+
 # Temporary files
 *.tmp
 *.temp
 temp/
 tmp/
+
+# Prevent accidental Lightsail files
+Dockerfile.lightsail
+LIGHTSAIL_DEPLOYMENT.md
+*lightsail_deploy.sh
+*requirements_fixed.txt

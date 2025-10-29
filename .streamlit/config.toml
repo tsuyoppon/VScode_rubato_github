@@ -1,0 +1,19 @@
+[server]
+port = 8501
+address = "0.0.0.0"
+headless = true
+enableCORS = false
+enableXsrfProtection = false
+maxUploadSize = 100
+maxMessageSize = 200
+
+[browser]
+gatherUsageStats = false
+
+[theme]
+base = "light"
+
+[runner]
+magicEnabled = true
+installTracer = false
+fixMatplotlib = true
