@@ -12,6 +12,7 @@ services:
       - OMP_NUM_THREADS=2
     volumes:
       - ./logs:/app/logs
+      - /home/ubuntu/config/config.yaml:/app/config.yaml:ro
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8501/_stcore/health"]
