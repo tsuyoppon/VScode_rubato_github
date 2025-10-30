@@ -33,6 +33,7 @@ RUN pip install --no-cache-dir -r requirements.txt && \
 
 # Copy application code
 COPY app_minimal.py .
+COPY auth_config.py .
 COPY two_level_vit_predict_for_webap2.py .
 COPY Twolevel_Vit_trialnew.py .
 COPY model_downloader.py .
