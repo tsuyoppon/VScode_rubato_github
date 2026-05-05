@@ -41,7 +41,7 @@ if [ $? -eq 0 ]; then
     echo "   ✅ PyYAML"
 else
     echo "   ❌ 必要なパッケージがインストールされていません"
-    echo "   実行: pip3 install streamlit-authenticator==0.2.3 PyYAML==6.0.1"
+    echo "   実行: pip3 install streamlit-authenticator==0.4.2 PyYAML==6.0.1"
     exit 1
 fi
 
